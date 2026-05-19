@@ -9,7 +9,6 @@ namespace TrainingHub.Models
         [Required]
         [StringLength(100)]
         public string Name { get; set; } = "";
-        //test
         [StringLength(500)]
         public string Description { get; set; } = "";
 
