@@ -22,7 +22,10 @@ namespace TrainingHub.Mvc.Controllers
         // GET: Enrollments
         public async Task<IActionResult> Index()
         {
-            var trainingHubDbContext = _context.Enrollments.Include(e => e.CourseSession).Include(e => e.Trainee);
+            var trainingHubDbContext = _context.Enrollments
+                .Include(e => e.CourseSession)
+                .Include(e => e.Trainee);
+
             return View(await trainingHubDbContext.ToListAsync());
         }
 
@@ -30,18 +33,15 @@ namespace TrainingHub.Mvc.Controllers
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
-            {
                 return NotFound();
-            }
 
             var enrollment = await _context.Enrollments
                 .Include(e => e.CourseSession)
                 .Include(e => e.Trainee)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (enrollment == null)
-            {
                 return NotFound();
-            }
 
             return View(enrollment);
         }
@@ -49,26 +49,25 @@ namespace TrainingHub.Mvc.Controllers
         // GET: Enrollments/Create
         public IActionResult Create()
         {
-            ViewData["CourseSessionId"] = new SelectList(_context.CourseSessions, "Id", "Status");
-            ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email");
+            PopulateDropdowns();
             return View();
         }
 
         // POST: Enrollments/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,TraineeId,CourseSessionId,Status,EnrolledAt,AttendanceStatus,ResultStatus,ResultRecordedAt")] Enrollment enrollment)
         {
+            await ValidateEnrollmentRules(enrollment);
+
             if (ModelState.IsValid)
             {
                 _context.Add(enrollment);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["CourseSessionId"] = new SelectList(_context.CourseSessions, "Id", "Status", enrollment.CourseSessionId);
-            ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", enrollment.TraineeId);
+
+            PopulateDropdowns(enrollment);
             return View(enrollment);
         }
 
@@ -76,31 +75,24 @@ namespace TrainingHub.Mvc.Controllers
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
-            {
                 return NotFound();
-            }
 
             var enrollment = await _context.Enrollments.FindAsync(id);
+
             if (enrollment == null)
-            {
                 return NotFound();
-            }
-            ViewData["CourseSessionId"] = new SelectList(_context.CourseSessions, "Id", "Status", enrollment.CourseSessionId);
-            ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", enrollment.TraineeId);
+
+            PopulateDropdowns(enrollment);
             return View(enrollment);
         }
 
         // POST: Enrollments/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,TraineeId,CourseSessionId,Status,EnrolledAt,AttendanceStatus,ResultStatus,ResultRecordedAt")] Enrollment enrollment)
         {
             if (id != enrollment.Id)
-            {
                 return NotFound();
-            }
 
             if (ModelState.IsValid)
             {
@@ -112,18 +104,15 @@ namespace TrainingHub.Mvc.Controllers
                 catch (DbUpdateConcurrencyException)
                 {
                     if (!EnrollmentExists(enrollment.Id))
-                    {
                         return NotFound();
-                    }
                     else
-                    {
                         throw;
-                    }
                 }
+
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["CourseSessionId"] = new SelectList(_context.CourseSessions, "Id", "Status", enrollment.CourseSessionId);
-            ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", enrollment.TraineeId);
+
+            PopulateDropdowns(enrollment);
             return View(enrollment);
         }
 
@@ -131,18 +120,15 @@ namespace TrainingHub.Mvc.Controllers
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
-            {
                 return NotFound();
-            }
 
             var enrollment = await _context.Enrollments
                 .Include(e => e.CourseSession)
                 .Include(e => e.Trainee)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (enrollment == null)
-            {
                 return NotFound();
-            }
 
             return View(enrollment);
         }
@@ -170,6 +156,41 @@ namespace TrainingHub.Mvc.Controllers
                 return View("Delete", enrollment);
             }
         }
+
+        private async Task ValidateEnrollmentRules(Enrollment enrollment)
+        {
+            var duplicateEnrollment = await _context.Enrollments.AnyAsync(e =>
+                e.TraineeId == enrollment.TraineeId &&
+                e.CourseSessionId == enrollment.CourseSessionId &&
+                e.Id != enrollment.Id);
+
+            if (duplicateEnrollment)
+            {
+                ModelState.AddModelError("", "This trainee is already enrolled in this session.");
+            }
+
+            var session = await _context.CourseSessions
+                .Include(cs => cs.Enrollments)
+                .FirstOrDefaultAsync(cs => cs.Id == enrollment.CourseSessionId);
+
+            if (session == null)
+            {
+                ModelState.AddModelError("", "Selected course session does not exist.");
+                return;
+            }
+
+            if (session.Enrollments.Count >= session.Capacity)
+            {
+                ModelState.AddModelError("", "This session is already full.");
+            }
+        }
+
+        private void PopulateDropdowns(Enrollment? enrollment = null)
+        {
+            ViewData["CourseSessionId"] = new SelectList(_context.CourseSessions, "Id", "Status", enrollment?.CourseSessionId);
+            ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", enrollment?.TraineeId);
+        }
+
         private bool EnrollmentExists(int id)
         {
             return _context.Enrollments.Any(e => e.Id == id);

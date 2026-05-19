@@ -22,7 +22,11 @@ namespace TrainingHub.Mvc.Controllers
         // GET: CourseSessions
         public async Task<IActionResult> Index()
         {
-            var trainingHubDbContext = _context.CourseSessions.Include(c => c.Classroom).Include(c => c.Course).Include(c => c.Instructor);
+            var trainingHubDbContext = _context.CourseSessions
+                .Include(c => c.Classroom)
+                .Include(c => c.Course)
+                .Include(c => c.Instructor);
+
             return View(await trainingHubDbContext.ToListAsync());
         }
 
@@ -30,19 +34,16 @@ namespace TrainingHub.Mvc.Controllers
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
-            {
                 return NotFound();
-            }
 
             var courseSession = await _context.CourseSessions
                 .Include(c => c.Classroom)
                 .Include(c => c.Course)
                 .Include(c => c.Instructor)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (courseSession == null)
-            {
                 return NotFound();
-            }
 
             return View(courseSession);
         }
@@ -50,28 +51,25 @@ namespace TrainingHub.Mvc.Controllers
         // GET: CourseSessions/Create
         public IActionResult Create()
         {
-            ViewData["ClassroomId"] = new SelectList(_context.Classrooms, "Id", "Location");
-            ViewData["CourseId"] = new SelectList(_context.Courses, "Id", "Description");
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio");
+            PopulateDropdowns();
             return View();
         }
 
         // POST: CourseSessions/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,CourseId,InstructorId,ClassroomId,StartDate,EndDate,Capacity,Status,CreatedAt")] CourseSession courseSession)
         {
+            await ValidateCourseSessionRules(courseSession);
+
             if (ModelState.IsValid)
             {
                 _context.Add(courseSession);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["ClassroomId"] = new SelectList(_context.Classrooms, "Id", "Location", courseSession.ClassroomId);
-            ViewData["CourseId"] = new SelectList(_context.Courses, "Id", "Description", courseSession.CourseId);
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio", courseSession.InstructorId);
+
+            PopulateDropdowns(courseSession);
             return View(courseSession);
         }
 
@@ -79,32 +77,26 @@ namespace TrainingHub.Mvc.Controllers
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
-            {
                 return NotFound();
-            }
 
             var courseSession = await _context.CourseSessions.FindAsync(id);
+
             if (courseSession == null)
-            {
                 return NotFound();
-            }
-            ViewData["ClassroomId"] = new SelectList(_context.Classrooms, "Id", "Location", courseSession.ClassroomId);
-            ViewData["CourseId"] = new SelectList(_context.Courses, "Id", "Description", courseSession.CourseId);
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio", courseSession.InstructorId);
+
+            PopulateDropdowns(courseSession);
             return View(courseSession);
         }
 
         // POST: CourseSessions/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,CourseId,InstructorId,ClassroomId,StartDate,EndDate,Capacity,Status,CreatedAt")] CourseSession courseSession)
         {
             if (id != courseSession.Id)
-            {
                 return NotFound();
-            }
+
+            await ValidateCourseSessionRules(courseSession);
 
             if (ModelState.IsValid)
             {
@@ -116,19 +108,15 @@ namespace TrainingHub.Mvc.Controllers
                 catch (DbUpdateConcurrencyException)
                 {
                     if (!CourseSessionExists(courseSession.Id))
-                    {
                         return NotFound();
-                    }
                     else
-                    {
                         throw;
-                    }
                 }
+
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["ClassroomId"] = new SelectList(_context.Classrooms, "Id", "Location", courseSession.ClassroomId);
-            ViewData["CourseId"] = new SelectList(_context.Courses, "Id", "Description", courseSession.CourseId);
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio", courseSession.InstructorId);
+
+            PopulateDropdowns(courseSession);
             return View(courseSession);
         }
 
@@ -136,19 +124,16 @@ namespace TrainingHub.Mvc.Controllers
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
-            {
                 return NotFound();
-            }
 
             var courseSession = await _context.CourseSessions
                 .Include(c => c.Classroom)
                 .Include(c => c.Course)
                 .Include(c => c.Instructor)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (courseSession == null)
-            {
                 return NotFound();
-            }
 
             return View(courseSession);
         }
@@ -183,6 +168,51 @@ namespace TrainingHub.Mvc.Controllers
                 ModelState.AddModelError("", "Unable to delete this session because related records exist.");
                 return View("Delete", courseSession);
             }
+        }
+
+        private async Task ValidateCourseSessionRules(CourseSession courseSession)
+        {
+            if (courseSession.EndDate <= courseSession.StartDate)
+            {
+                ModelState.AddModelError("", "End date must be after start date.");
+            }
+
+            var instructorBooked = await _context.CourseSessions.AnyAsync(cs =>
+                cs.InstructorId == courseSession.InstructorId &&
+                cs.Id != courseSession.Id &&
+                cs.StartDate < courseSession.EndDate &&
+                courseSession.StartDate < cs.EndDate);
+
+            if (instructorBooked)
+            {
+                ModelState.AddModelError("", "This instructor is already booked during this time.");
+            }
+
+            var classroomBooked = await _context.CourseSessions.AnyAsync(cs =>
+                cs.ClassroomId == courseSession.ClassroomId &&
+                cs.Id != courseSession.Id &&
+                cs.StartDate < courseSession.EndDate &&
+                courseSession.StartDate < cs.EndDate);
+
+            if (classroomBooked)
+            {
+                ModelState.AddModelError("", "This classroom is already booked during this time.");
+            }
+
+            var classroom = await _context.Classrooms
+                .FirstOrDefaultAsync(c => c.Id == courseSession.ClassroomId);
+
+            if (classroom != null && courseSession.Capacity > classroom.Capacity)
+            {
+                ModelState.AddModelError("", "Session capacity cannot exceed classroom capacity.");
+            }
+        }
+
+        private void PopulateDropdowns(CourseSession? courseSession = null)
+        {
+            ViewData["ClassroomId"] = new SelectList(_context.Classrooms, "Id", "Location", courseSession?.ClassroomId);
+            ViewData["CourseId"] = new SelectList(_context.Courses, "Id", "Description", courseSession?.CourseId);
+            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio", courseSession?.InstructorId);
         }
 
         private bool CourseSessionExists(int id)
