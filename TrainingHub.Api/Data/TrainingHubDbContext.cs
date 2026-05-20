@@ -158,6 +158,12 @@ namespace TrainingHub.Data
                 .Property(p => p.AmountPaid)
                 .HasPrecision(18, 2);
 
+            modelBuilder.Entity<Course>()
+          .HasOne(c => c.PrerequisiteCourse)
+          .WithMany()
+          .HasForeignKey(c => c.PrerequisiteCourseId)
+              .OnDelete(DeleteBehavior.Restrict);
+
 
             // ------------------------
             // Seed data
@@ -188,19 +194,33 @@ namespace TrainingHub.Data
                     DefaultCapacity = 20,
                     Fee = 499.99m,
                     IsActive = true,
-                    CategoryId = 1
+                    CategoryId = 1,
+                    PrerequisiteCourseId = (int?)null
                 },
-                new
-                {
-                    Id = 2,
-                    Title = "Python for Data Analysis",
-                    Description = "Using Python to analyze and visualize data.",
-                    DurationHours = 30.0,
-                    DefaultCapacity = 25,
-                    Fee = 599.50m,
-                    IsActive = true,
-                    CategoryId = 2
-                }
+               new
+               {
+                   Id = 2,
+                   Title = "Python for Data Analysis",
+                   Description = "Using Python to analyze and visualize data.",
+                   DurationHours = 30.0,
+                   DefaultCapacity = 25,
+                   Fee = 599.50m,
+                   IsActive = true,
+                   CategoryId = 2,
+                   PrerequisiteCourseId = (int?)null
+               },
+               new
+               {
+                   Id = 3,
+                   Title = "ASP.NET Core MVC",
+                   Description = "Building web applications using ASP.NET Core MVC.",
+                   DurationHours = 45.0,
+                   DefaultCapacity = 20,
+                   Fee = 799.99m,
+                   IsActive = true,
+                   CategoryId = 1,
+                   PrerequisiteCourseId = 1
+               }
             );
 
             modelBuilder.Entity<CertificationTrack>().HasData(
@@ -210,7 +230,13 @@ namespace TrainingHub.Data
 
             modelBuilder.Entity<CertificationTrackCourse>().HasData(
                 new { Id = 1, CertificationTrackId = 1, CourseId = 1 },
-                new { Id = 2, CertificationTrackId = 2, CourseId = 2 }
+                new { Id = 2, CertificationTrackId = 2, CourseId = 2 },
+                new
+                {
+                    Id = 3,
+                    CertificationTrackId = 1,
+                    CourseId = 3
+                }
             );
 
             modelBuilder.Entity<Trainee>().HasData(
@@ -242,13 +268,43 @@ namespace TrainingHub.Data
                     Capacity = 25,
                     Status = "Scheduled",
                     CreatedAt = new DateTime(2026, 5, 10)
+                }, new
+                {
+                    Id = 3,
+                    CourseId = 3,
+                    InstructorId = 1,
+                    ClassroomId = 1,
+                    StartDate = new DateTime(2026, 8, 1),
+                    EndDate = new DateTime(2026, 8, 10),
+                    Capacity = 20,
+                    Status = "Scheduled",
+                    CreatedAt = new DateTime(2026, 7, 1)
                 }
             );
 
             modelBuilder.Entity<Enrollment>().HasData(
-                new { Id = 1, TraineeId = 1, CourseSessionId = 1, Status = "Enrolled", EnrolledAt = new DateTime(2026, 5, 20), AttendanceStatus = "", ResultStatus = "", ResultRecordedAt = (DateTime?)null },
-                new { Id = 2, TraineeId = 2, CourseSessionId = 2, Status = "Enrolled", EnrolledAt = new DateTime(2026, 5, 22), AttendanceStatus = "", ResultStatus = "", ResultRecordedAt = (DateTime?)null }
-            );
+               new
+               {
+                   Id = 1,
+                   TraineeId = 1,
+                   CourseSessionId = 1,
+                   Status = "Completed",
+                   EnrolledAt = new DateTime(2026, 5, 20),
+                   AttendanceStatus = "Present",
+                   ResultStatus = "Pass",
+                   ResultRecordedAt = new DateTime(2026, 6, 11)
+               },
+new
+{
+    Id = 2,
+    TraineeId = 2,
+    CourseSessionId = 2,
+    Status = "Enrolled",
+    EnrolledAt = new DateTime(2026, 5, 22),
+    AttendanceStatus = "Pending",
+    ResultStatus = "Pending",
+    ResultRecordedAt = (DateTime?)null
+});
 
             modelBuilder.Entity<Payment>().HasData(
                 new { Id = 1, TraineeId = 1, EnrollmentId = 1, AmountPaid = 499.99m, PaidAt = new DateTime(2026, 5, 21), PaymentMethod = "CreditCard", ReferenceNumber = "PAY-1001", Notes = "" },

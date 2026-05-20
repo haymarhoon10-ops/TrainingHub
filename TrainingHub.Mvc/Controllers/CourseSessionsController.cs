@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
@@ -19,47 +15,43 @@ namespace TrainingHub.Mvc.Controllers
             _context = context;
         }
 
-        // GET: CourseSessions
         public async Task<IActionResult> Index()
         {
-            var trainingHubDbContext = _context.CourseSessions
-                .Include(c => c.Classroom)
-                .Include(c => c.Course)
-                .Include(c => c.Instructor);
-
-            return View(await trainingHubDbContext.ToListAsync());
-        }
-
-        // GET: CourseSessions/Details/5
-        public async Task<IActionResult> Details(int? id)
-        {
-            if (id == null)
-                return NotFound();
-
-            var courseSession = await _context.CourseSessions
-                .Include(c => c.Classroom)
+            var sessions = _context.CourseSessions
                 .Include(c => c.Course)
                 .Include(c => c.Instructor)
+                .Include(c => c.Classroom);
+
+            return View(await sessions.ToListAsync());
+        }
+
+        public async Task<IActionResult> Details(int? id)
+        {
+            if (id == null) return NotFound();
+
+            var courseSession = await _context.CourseSessions
+                .Include(c => c.Course)
+                .Include(c => c.Instructor)
+                .Include(c => c.Classroom)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (courseSession == null)
-                return NotFound();
+            if (courseSession == null) return NotFound();
 
             return View(courseSession);
         }
 
-        // GET: CourseSessions/Create
         public IActionResult Create()
         {
             PopulateDropdowns();
-            return View();
+            return View(new CourseSession());
         }
 
-        // POST: CourseSessions/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,CourseId,InstructorId,ClassroomId,StartDate,EndDate,Capacity,Status,CreatedAt")] CourseSession courseSession)
+        public async Task<IActionResult> Create([Bind("CourseId,InstructorId,ClassroomId,StartDate,EndDate,Capacity,Status")] CourseSession courseSession)
         {
+            courseSession.CreatedAt = DateTime.Now;
+
             await ValidateCourseSessionRules(courseSession);
 
             if (ModelState.IsValid)
@@ -73,28 +65,23 @@ namespace TrainingHub.Mvc.Controllers
             return View(courseSession);
         }
 
-        // GET: CourseSessions/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
-            if (id == null)
-                return NotFound();
+            if (id == null) return NotFound();
 
             var courseSession = await _context.CourseSessions.FindAsync(id);
 
-            if (courseSession == null)
-                return NotFound();
+            if (courseSession == null) return NotFound();
 
             PopulateDropdowns(courseSession);
             return View(courseSession);
         }
 
-        // POST: CourseSessions/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,CourseId,InstructorId,ClassroomId,StartDate,EndDate,Capacity,Status,CreatedAt")] CourseSession courseSession)
         {
-            if (id != courseSession.Id)
-                return NotFound();
+            if (id != courseSession.Id) return NotFound();
 
             await ValidateCourseSessionRules(courseSession);
 
@@ -107,10 +94,8 @@ namespace TrainingHub.Mvc.Controllers
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!CourseSessionExists(courseSession.Id))
-                        return NotFound();
-                    else
-                        throw;
+                    if (!CourseSessionExists(courseSession.Id)) return NotFound();
+                    throw;
                 }
 
                 return RedirectToAction(nameof(Index));
@@ -120,25 +105,21 @@ namespace TrainingHub.Mvc.Controllers
             return View(courseSession);
         }
 
-        // GET: CourseSessions/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
-            if (id == null)
-                return NotFound();
+            if (id == null) return NotFound();
 
             var courseSession = await _context.CourseSessions
-                .Include(c => c.Classroom)
                 .Include(c => c.Course)
                 .Include(c => c.Instructor)
+                .Include(c => c.Classroom)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (courseSession == null)
-                return NotFound();
+            if (courseSession == null) return NotFound();
 
             return View(courseSession);
         }
 
-        // POST: CourseSessions/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -147,56 +128,25 @@ namespace TrainingHub.Mvc.Controllers
                 .Include(cs => cs.Enrollments)
                 .FirstOrDefaultAsync(cs => cs.Id == id);
 
-            if (courseSession == null)
-                return NotFound();
+            if (courseSession == null) return NotFound();
 
             if (courseSession.Enrollments.Any())
             {
-                ModelState.AddModelError("", "Cannot delete this session because students are enrolled.");
+                ModelState.AddModelError("", "Cannot delete this session because trainees are enrolled.");
                 return View("Delete", courseSession);
             }
 
-            try
-            {
-                _context.CourseSessions.Remove(courseSession);
-                await _context.SaveChangesAsync();
+            _context.CourseSessions.Remove(courseSession);
+            await _context.SaveChangesAsync();
 
-                return RedirectToAction(nameof(Index));
-            }
-            catch (DbUpdateException)
-            {
-                ModelState.AddModelError("", "Unable to delete this session because related records exist.");
-                return View("Delete", courseSession);
-            }
+            return RedirectToAction(nameof(Index));
         }
 
         private async Task ValidateCourseSessionRules(CourseSession courseSession)
         {
             if (courseSession.EndDate <= courseSession.StartDate)
             {
-                ModelState.AddModelError("", "End date must be after start date.");
-            }
-
-            var instructorBooked = await _context.CourseSessions.AnyAsync(cs =>
-                cs.InstructorId == courseSession.InstructorId &&
-                cs.Id != courseSession.Id &&
-                cs.StartDate < courseSession.EndDate &&
-                courseSession.StartDate < cs.EndDate);
-
-            if (instructorBooked)
-            {
-                ModelState.AddModelError("", "This instructor is already booked during this time.");
-            }
-
-            var classroomBooked = await _context.CourseSessions.AnyAsync(cs =>
-                cs.ClassroomId == courseSession.ClassroomId &&
-                cs.Id != courseSession.Id &&
-                cs.StartDate < courseSession.EndDate &&
-                courseSession.StartDate < cs.EndDate);
-
-            if (classroomBooked)
-            {
-                ModelState.AddModelError("", "This classroom is already booked during this time.");
+                ModelState.AddModelError("EndDate", "End date must be after start date.");
             }
 
             var classroom = await _context.Classrooms
@@ -204,15 +154,37 @@ namespace TrainingHub.Mvc.Controllers
 
             if (classroom != null && courseSession.Capacity > classroom.Capacity)
             {
-                ModelState.AddModelError("", "Session capacity cannot exceed classroom capacity.");
+                ModelState.AddModelError("Capacity", $"Session capacity cannot exceed classroom capacity ({classroom.Capacity}).");
+            }
+
+            var instructorConflict = await _context.CourseSessions.AnyAsync(cs =>
+                cs.Id != courseSession.Id &&
+                cs.InstructorId == courseSession.InstructorId &&
+                cs.StartDate < courseSession.EndDate &&
+                courseSession.StartDate < cs.EndDate);
+
+            if (instructorConflict)
+            {
+                ModelState.AddModelError("InstructorId", "This instructor already has another session during this time.");
+            }
+
+            var classroomConflict = await _context.CourseSessions.AnyAsync(cs =>
+                cs.Id != courseSession.Id &&
+                cs.ClassroomId == courseSession.ClassroomId &&
+                cs.StartDate < courseSession.EndDate &&
+                courseSession.StartDate < cs.EndDate);
+
+            if (classroomConflict)
+            {
+                ModelState.AddModelError("ClassroomId", "This classroom is already booked during this time.");
             }
         }
 
         private void PopulateDropdowns(CourseSession? courseSession = null)
         {
+            ViewData["CourseId"] = new SelectList(_context.Courses, "Id", "Title", courseSession?.CourseId);
+            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Name", courseSession?.InstructorId);
             ViewData["ClassroomId"] = new SelectList(_context.Classrooms, "Id", "Location", courseSession?.ClassroomId);
-            ViewData["CourseId"] = new SelectList(_context.Courses, "Id", "Description", courseSession?.CourseId);
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio", courseSession?.InstructorId);
         }
 
         private bool CourseSessionExists(int id)

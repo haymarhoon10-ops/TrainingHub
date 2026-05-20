@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TrainingHub.Data;
 
@@ -11,9 +12,11 @@ using TrainingHub.Data;
 namespace TrainingHub.Api.Migrations
 {
     [DbContext(typeof(TrainingHubDbContext))]
-    partial class TrainingHubDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260520150537_w123")]
+    partial class w123
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

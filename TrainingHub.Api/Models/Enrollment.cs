@@ -19,8 +19,7 @@ namespace TrainingHub.Models
         public DateTime EnrolledAt { get; set; } = DateTime.Now;
 
         [StringLength(50)]
-        public string AttendanceStatus { get; set; } = "NotStarted";
-
+        public string AttendanceStatus { get; set; } = "Pending";
         [StringLength(50)]
         public string ResultStatus { get; set; } = "Pending";
 

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Mvc.Models;
 
 namespace TrainingHub.Mvc.Controllers
 {
@@ -34,7 +35,9 @@ namespace TrainingHub.Mvc.Controllers
             }
 
             var certificationTrack = await _context.CertificationTracks
-                .FirstOrDefaultAsync(m => m.Id == id);
+    .Include(ct => ct.CertificationTrackCourses)
+        .ThenInclude(ctc => ctc.Course)
+    .FirstOrDefaultAsync(m => m.Id == id);
             if (certificationTrack == null)
             {
                 return NotFound();
@@ -165,6 +168,63 @@ namespace TrainingHub.Mvc.Controllers
                 ModelState.AddModelError("", "Unable to delete this certification track because related records exist.");
                 return View("Delete", certificationTrack);
             }
+        }
+
+        // GET: CertificationTracks/Progress?traineeId=1&trackId=1
+        public async Task<IActionResult> Progress(int? traineeId, int? trackId)
+        {
+            if (traineeId == null || trackId == null)
+            {
+                return BadRequest("Trainee ID and Track ID are required.");
+            }
+
+            var trainee = await _context.Trainees.FindAsync(traineeId);
+            if (trainee == null)
+            {
+                return NotFound("Trainee not found.");
+            }
+
+            var certificationTrack = await _context.CertificationTracks
+                .Include(ct => ct.CertificationTrackCourses)
+                    .ThenInclude(ctc => ctc.Course)
+                .FirstOrDefaultAsync(ct => ct.Id == trackId);
+
+            if (certificationTrack == null)
+            {
+                return NotFound("Certification Track not found.");
+            }
+
+            // Get total required courses in the track
+            int totalCourses = certificationTrack.CertificationTrackCourses.Count;
+
+            // Get completed courses for the trainee
+            var completedCourses = await _context.Enrollments
+                .Where(e =>
+                    e.TraineeId == traineeId &&
+                    e.Status == "Completed" &&
+                    e.ResultStatus == "Pass" &&
+                    certificationTrack.CertificationTrackCourses
+                        .Select(ctc => ctc.CourseId)
+                        .Contains(e.CourseSession!.CourseId))
+                .Select(e => e.CourseSession!.CourseId)
+                .Distinct()
+                .CountAsync();
+
+            // Calculate progress percentage
+            decimal progressPercentage = totalCourses > 0
+                ? Math.Round((decimal)completedCourses / totalCourses * 100, 2)
+                : 0;
+
+            var viewModel = new CertificationProgressViewModel
+            {
+                TraineeName = trainee.FullName,
+                CertificationTrackName = certificationTrack.Name,
+                CompletedCourses = completedCourses,
+                TotalRequiredCourses = totalCourses,
+                ProgressPercentage = progressPercentage
+            };
+
+            return View(viewModel);
         }
 
         private bool CertificationTrackExists(int id)

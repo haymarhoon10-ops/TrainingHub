@@ -1,0 +1,68 @@
+@model TrainingHub.Mvc.Models.CertificationProgressViewModel
+
+@{
+    ViewData["Title"] = "Certification Progress";
+}
+
+<h1>Certification Progress</h1>
+
+<div class="card">
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h5>Trainee</h5>
+                <p class="text-muted">@Model.TraineeName</p>
+            </div>
+            <div class="col-md-6">
+                <h5>Certification Track</h5>
+                <p class="text-muted">@Model.CertificationTrackName</p>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h5>Progress Overview</h5>
+                <div class="progress" style="height: 30px;">
+                    <div class="progress-bar bg-success" role="progressbar" 
+                         style="width: @Model.ProgressPercentage%;" 
+                         aria-valuenow="@Model.ProgressPercentage" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100">
+                        @Model.ProgressPercentage%
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title">Completed Courses</h6>
+                        <p class="display-6 text-success">@Model.CompletedCourses</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title">Total Required Courses</h6>
+                        <p class="display-6 text-primary">@Model.TotalRequiredCourses</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title">Progress</h6>
+                        <p class="display-6 text-info">@Model.ProgressPercentage%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <a asp-action="Details" asp-route-id="@ViewBag.TrackId" class="btn btn-secondary">Back to Certification Track</a>
+        </div>
+    </div>
+</div>

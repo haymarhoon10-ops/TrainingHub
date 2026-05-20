@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TrainingHub.Data;
 
@@ -11,9 +12,11 @@ using TrainingHub.Data;
 namespace TrainingHub.Api.Migrations
 {
     [DbContext(typeof(TrainingHubDbContext))]
-    partial class TrainingHubDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260520145220_Updating")]
+    partial class Updating
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -182,12 +185,6 @@ namespace TrainingHub.Api.Migrations
                             Id = 2,
                             CertificationTrackId = 2,
                             CourseId = 2
-                        },
-                        new
-                        {
-                            Id = 3,
-                            CertificationTrackId = 1,
-                            CourseId = 3
                         });
                 });
 
@@ -275,9 +272,6 @@ namespace TrainingHub.Api.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<int?>("PrerequisiteCourseId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -286,8 +280,6 @@ namespace TrainingHub.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
-
-                    b.HasIndex("PrerequisiteCourseId");
 
                     b.ToTable("Courses");
 
@@ -313,18 +305,6 @@ namespace TrainingHub.Api.Migrations
                             Fee = 599.50m,
                             IsActive = true,
                             Title = "Python for Data Analysis"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            CategoryId = 1,
-                            DefaultCapacity = 20,
-                            Description = "Building web applications using ASP.NET Core MVC.",
-                            DurationHours = 45.0,
-                            Fee = 799.99m,
-                            IsActive = true,
-                            PrerequisiteCourseId = 1,
-                            Title = "ASP.NET Core MVC"
                         });
                 });
 
@@ -396,18 +376,6 @@ namespace TrainingHub.Api.Migrations
                             InstructorId = 2,
                             StartDate = new DateTime(2026, 7, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = "Scheduled"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Capacity = 20,
-                            ClassroomId = 1,
-                            CourseId = 3,
-                            CreatedAt = new DateTime(2026, 7, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            EndDate = new DateTime(2026, 8, 10, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            InstructorId = 1,
-                            StartDate = new DateTime(2026, 8, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Status = "Scheduled"
                         });
                 });
 
@@ -458,21 +426,20 @@ namespace TrainingHub.Api.Migrations
                         new
                         {
                             Id = 1,
-                            AttendanceStatus = "Present",
+                            AttendanceStatus = "",
                             CourseSessionId = 1,
                             EnrolledAt = new DateTime(2026, 5, 20, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            ResultRecordedAt = new DateTime(2026, 6, 11, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            ResultStatus = "Pass",
-                            Status = "Completed",
+                            ResultStatus = "",
+                            Status = "Enrolled",
                             TraineeId = 1
                         },
                         new
                         {
                             Id = 2,
-                            AttendanceStatus = "Pending",
+                            AttendanceStatus = "",
                             CourseSessionId = 2,
                             EnrolledAt = new DateTime(2026, 5, 22, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            ResultStatus = "Pending",
+                            ResultStatus = "",
                             Status = "Enrolled",
                             TraineeId = 2
                         });
@@ -786,14 +753,7 @@ namespace TrainingHub.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("TrainingHub.Models.Course", "PrerequisiteCourse")
-                        .WithMany()
-                        .HasForeignKey("PrerequisiteCourseId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Category");
-
-                    b.Navigation("PrerequisiteCourse");
                 });
 
             modelBuilder.Entity("TrainingHub.Models.CourseSession", b =>

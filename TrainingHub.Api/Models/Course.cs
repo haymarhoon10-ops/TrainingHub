@@ -30,6 +30,10 @@ namespace TrainingHub.Models
 
         public Category? Category { get; set; }
 
+        public int? PrerequisiteCourseId { get; set; }
+
+        public Course? PrerequisiteCourse { get; set; }
+
         public ICollection<CourseSession> CourseSessions { get; set; } = new List<CourseSession>();
         public ICollection<CertificationTrackCourse> CertificationTrackCourses { get; set; } = new List<CertificationTrackCourse>();
     }

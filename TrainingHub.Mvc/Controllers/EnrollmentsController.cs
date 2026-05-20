@@ -183,12 +183,53 @@ namespace TrainingHub.Mvc.Controllers
             {
                 ModelState.AddModelError("", "This session is already full.");
             }
+
+            var selectedSession = await _context.CourseSessions
+                .Include(cs => cs.Course)
+                .FirstOrDefaultAsync(cs => cs.Id == enrollment.CourseSessionId);
+
+            if (selectedSession?.Course?.PrerequisiteCourseId != null)
+            {
+                var prerequisiteCompleted = await _context.Enrollments
+                    .Include(e => e.CourseSession)
+                    .AnyAsync(e =>
+                        e.TraineeId == enrollment.TraineeId &&
+                        e.CourseSession!.CourseId == selectedSession.Course.PrerequisiteCourseId &&
+                        e.Status == "Completed" &&
+                        e.ResultStatus == "Pass");
+
+                if (!prerequisiteCompleted)
+                {
+                    ModelState.AddModelError(
+                        "",
+                        "Trainee has not completed the prerequisite course.");
+                }
+            }
         }
 
         private void PopulateDropdowns(Enrollment? enrollment = null)
         {
-            ViewData["CourseSessionId"] = new SelectList(_context.CourseSessions, "Id", "Status", enrollment?.CourseSessionId);
-            ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", enrollment?.TraineeId);
+            var sessions = _context.CourseSessions
+                .Include(cs => cs.Course)
+                .ToList();
+
+            var sessionList = sessions.Select(cs => new
+            {
+                Id = cs.Id,
+                Name = $"Session {cs.Id} - {cs.Course?.Title}"
+            });
+
+            ViewData["CourseSessionId"] = new SelectList(
+                sessionList,
+                "Id",
+                "Name",
+                enrollment?.CourseSessionId);
+
+            ViewData["TraineeId"] = new SelectList(
+                _context.Trainees,
+                "Id",
+                "Email",
+                enrollment?.TraineeId);
         }
 
         private bool EnrollmentExists(int id)
