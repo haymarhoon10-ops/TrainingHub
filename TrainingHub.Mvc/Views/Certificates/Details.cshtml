@@ -32,13 +32,23 @@
             @Html.DisplayNameFor(model => model.Trainee)
         </dt>
         <dd class = "col-sm-10">
-            @Html.DisplayFor(model => model.Trainee.Email)
+            @Html.DisplayFor(model => model.Trainee.FullName)
         </dd>
         <dt class = "col-sm-2">
             @Html.DisplayNameFor(model => model.CertificationTrack)
         </dt>
         <dd class = "col-sm-10">
-            @Html.DisplayFor(model => model.CertificationTrack.Description)
+            @Html.DisplayFor(model => model.CertificationTrack.Name)
+        </dd>
+        <dt class = "col-sm-2">Passed Courses</dt>
+        <dd class = "col-sm-10">@((ViewBag.PassedCourses != null) ? ViewBag.PassedCourses.ToString() : "0")</dd>
+        <dt class = "col-sm-2">Total Required</dt>
+        <dd class = "col-sm-10">@((ViewBag.TotalRequired != null) ? ViewBag.TotalRequired.ToString() : "0")</dd>
+        <dt class = "col-sm-2">Remaining</dt>
+        <dd class = "col-sm-10">@((ViewBag.RemainingCourses != null) ? ViewBag.RemainingCourses.ToString() : "0")</dd>
+        <dt class = "col-sm-2">Eligibility</dt>
+        <dd class = "col-sm-10">@{ var eligible = (ViewBag.IsEligible != null) ? (bool)ViewBag.IsEligible : false; }
+            @if (eligible) { <span class="badge bg-success">Eligible</span> } else { <span class="badge bg-secondary">Not eligible</span> }
         </dd>
     </dl>
 </div>

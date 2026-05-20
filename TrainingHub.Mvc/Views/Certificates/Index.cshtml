@@ -12,21 +12,14 @@
 <table class="table">
     <thead>
         <tr>
-            <th>
-                @Html.DisplayNameFor(model => model.CertificateReferenceNumber)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.IssuedAt)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.Status)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.Trainee)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.CertificationTrack)
-            </th>
+            <th>Reference</th>
+            <th>Issued At</th>
+            <th>Status</th>
+            <th>Trainee</th>
+            <th>Certification Track</th>
+            <th>Passed / Required</th>
+            <th>Remaining</th>
+            <th>Eligibility</th>
             <th></th>
         </tr>
     </thead>
@@ -43,10 +36,29 @@
                 @Html.DisplayFor(modelItem => item.Status)
             </td>
             <td>
-                @Html.DisplayFor(modelItem => item.Trainee.Email)
+                @Html.DisplayFor(modelItem => item.Trainee.FullName)
             </td>
             <td>
-                @Html.DisplayFor(modelItem => item.CertificationTrack.Description)
+                @Html.DisplayFor(modelItem => item.CertificationTrack.Name)
+            </td>
+            <td>
+                @((ViewBag.PassCounts != null && ViewBag.PassCounts[item.Id] != null) ? ViewBag.PassCounts[item.Id].ToString() : "0")
+                /
+                @((ViewBag.TotalRequired != null && ViewBag.TotalRequired[item.Id] != null) ? ViewBag.TotalRequired[item.Id].ToString() : "0")
+            </td>
+            <td>
+                @((ViewBag.Remaining != null && ViewBag.Remaining[item.Id] != null) ? ViewBag.Remaining[item.Id].ToString() : "0")
+            </td>
+            <td>
+                @{ var eligible = (ViewBag.IsEligible != null && ViewBag.IsEligible[item.Id] != null) ? (bool)ViewBag.IsEligible[item.Id] : false; }
+                @if (eligible)
+                {
+                    <span class="badge bg-success">Eligible</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary">Not eligible</span>
+                }
             </td>
             <td>
                 <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |

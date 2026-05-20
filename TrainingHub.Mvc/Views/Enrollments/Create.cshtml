@@ -20,9 +20,17 @@
                 <label asp-for="CourseSessionId" class="control-label"></label>
                 <select asp-for="CourseSessionId" class ="form-control" asp-items="ViewBag.CourseSessionId"></select>
             </div>
-            <div class="form-group">
+            <div class="form-group mb-3">
                 <label asp-for="Status" class="control-label"></label>
-                <input asp-for="Status" class="form-control" />
+                <select asp-for="Status" class="form-control">
+                    <option value="">-- Select status --</option>
+                    <option value="Enrolled">Enrolled</option>
+                    <option value="Confirmed">Confirmed</option>
+                    <option value="Attending">Attending</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Dropped">Dropped</option>
+                </select>
+                <small class="form-text text-muted">Choose the current enrollment lifecycle status.</small>
                 <span asp-validation-for="Status" class="text-danger"></span>
             </div>
             <div class="form-group">
@@ -30,14 +38,26 @@
                 <input asp-for="EnrolledAt" class="form-control" />
                 <span asp-validation-for="EnrolledAt" class="text-danger"></span>
             </div>
-            <div class="form-group">
+            <div class="form-group mb-3">
                 <label asp-for="AttendanceStatus" class="control-label"></label>
-                <input asp-for="AttendanceStatus" class="form-control" />
+                <select asp-for="AttendanceStatus" class="form-control">
+                    <option value="">-- Select attendance --</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Present">Present</option>
+                    <option value="Absent">Absent</option>
+                </select>
+                <small class="form-text text-muted">Attendance status is used for session tracking.</small>
                 <span asp-validation-for="AttendanceStatus" class="text-danger"></span>
             </div>
-            <div class="form-group">
+            <div class="form-group mb-3">
                 <label asp-for="ResultStatus" class="control-label"></label>
-                <input asp-for="ResultStatus" class="form-control" />
+                <select asp-for="ResultStatus" class="form-control">
+                    <option value="">-- Select result --</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                </select>
+                <small class="form-text text-muted">Record the final result for this enrollment.</small>
                 <span asp-validation-for="ResultStatus" class="text-danger"></span>
             </div>
             <div class="form-group">
