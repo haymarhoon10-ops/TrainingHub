@@ -36,11 +36,18 @@
             <td>
                 @Html.DisplayFor(modelItem => item.IsActive)
             </td>
-            <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
-                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
-            </td>
+                <td>
+                    <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
+                    <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
+                    <a asp-action="Delete" asp-route-id="@item.Id">Delete</a> |
+
+                    <a asp-action="Progress"
+                       asp-route-traineeId="1"
+                       asp-route-trackId="@item.Id"
+                       class="btn btn-info btn-sm">
+                        View Progress
+                    </a>
+                </td>
         </tr>
 }
     </tbody>
