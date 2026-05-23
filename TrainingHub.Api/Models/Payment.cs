@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TrainingHub.Models
 {
@@ -29,5 +30,11 @@ namespace TrainingHub.Models
 
         public Trainee? Trainee { get; set; }
         public Enrollment? Enrollment { get; set; }
+
+        [NotMapped]
+        public decimal OutstandingBalance { get; set; }
+
+        [NotMapped]
+        public bool IsOverdue { get; set; }
     }
 }

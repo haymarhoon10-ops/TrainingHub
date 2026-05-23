@@ -1,4 +1,5 @@
 ﻿@model IEnumerable<TrainingHub.Models.Payment>
+@using System.Linq
 
 @{
     ViewData["Title"] = "Index";
@@ -33,6 +34,12 @@
             <th>
                 @Html.DisplayNameFor(model => model.Enrollment)
             </th>
+            <th>
+                Outstanding Balance
+            </th>
+            <th>
+                Overdue
+            </th>
             <th></th>
         </tr>
     </thead>
@@ -59,6 +66,12 @@
             </td>
             <td>
                 @Html.DisplayFor(modelItem => item.Enrollment.AttendanceStatus)
+            </td>
+            <td>
+                @item.OutstandingBalance.ToString("C")
+            </td>
+            <td>
+                @(item.IsOverdue ? "Yes" : "No")
             </td>
             <td>
                 <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |

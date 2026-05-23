@@ -340,6 +340,14 @@ Roles work correctly
 Unauthorized access blocked
 Protected pages secured
 
+Demo sign-in accounts:
+
+Training Coordinator: coordinator@traininghub.local / TrainingHub123!
+Instructor: alice.johnson@example.com / TrainingHub123!
+Trainee: john.doe@example.com / TrainingHub123!
+
+Newly registered users are assigned the Trainee role.
+
 
 ---
 
@@ -710,6 +718,8 @@ Export final PDF report
 Include deployment URLs
 
 Include test accounts
+
+Use the demo sign-in accounts listed in Phase 5 when running the security checks.
 
 Include screenshots
 

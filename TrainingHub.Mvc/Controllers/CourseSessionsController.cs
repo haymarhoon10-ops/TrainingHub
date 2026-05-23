@@ -8,7 +8,7 @@ using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
     public class CourseSessionsController : Controller
     {
         private readonly TrainingHubDbContext _context;
@@ -20,10 +20,16 @@ namespace TrainingHub.Mvc.Controllers
 
         public async Task<IActionResult> Index()
         {
-            var sessions = _context.CourseSessions
+            var currentEmail = User.Identity?.Name;
+            IQueryable<CourseSession> sessions = _context.CourseSessions
                 .Include(c => c.Course)
                 .Include(c => c.Instructor)
                 .Include(c => c.Classroom);
+
+            if (User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                sessions = sessions.Where(session => session.Instructor != null && session.Instructor.Email == currentEmail);
+            }
 
             return View(await sessions.ToListAsync());
         }
@@ -39,6 +45,15 @@ namespace TrainingHub.Mvc.Controllers
                 .FirstOrDefaultAsync(m => m.Id == id);
 
             if (courseSession == null) return NotFound();
+
+            if (User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                var currentEmail = User.Identity?.Name;
+                if (!string.Equals(courseSession.Instructor?.Email, currentEmail, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+            }
 
             return View(courseSession);
         }

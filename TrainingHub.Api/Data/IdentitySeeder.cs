@@ -25,8 +25,8 @@ namespace TrainingHub.Data
             }
 
             await EnsureUserAsync(userManager, "coordinator@traininghub.local", "Training Coordinator", RoleNames.TrainingCoordinator);
-            await EnsureUserAsync(userManager, "instructor@traininghub.local", "Training Instructor", RoleNames.Instructor);
-            await EnsureUserAsync(userManager, "trainee@traininghub.local", "Training Trainee", RoleNames.Trainee);
+            await EnsureUserAsync(userManager, "alice.johnson@example.com", "Alice Johnson", RoleNames.Instructor);
+            await EnsureUserAsync(userManager, "john.doe@example.com", "John Doe", RoleNames.Trainee);
         }
 
         private static async Task EnsureUserAsync(

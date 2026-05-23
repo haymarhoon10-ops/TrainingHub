@@ -15,7 +15,7 @@ using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
-    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Trainee)]
     public class CertificatesController : Controller
     {
         private static readonly Regex CertificateReferencePattern = new("^[A-Za-z0-9-]+$", RegexOptions.Compiled);
@@ -29,10 +29,18 @@ namespace TrainingHub.Mvc.Controllers
         // GET: Certificates
         public async Task<IActionResult> Index()
         {
-            var certificates = await _context.Certificates
+            var currentEmail = User.Identity?.Name;
+            IQueryable<Certificate> certificatesQuery = _context.Certificates
                 .Include(c => c.CertificationTrack)
                 .Include(c => c.Trainee)
-                .ToListAsync();
+                .AsQueryable();
+
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                certificatesQuery = certificatesQuery.Where(c => c.Trainee != null && c.Trainee.Email == currentEmail);
+            }
+
+            var certificates = await certificatesQuery.ToListAsync();
 
             var passCounts = new Dictionary<int, int>();
             var totalRequired = new Dictionary<int, int>();
@@ -73,6 +81,14 @@ namespace TrainingHub.Mvc.Controllers
             if (certificate == null)
             {
                 return NotFound();
+            }
+
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                if (!string.Equals(certificate.Trainee?.Email, User.Identity?.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
             }
 
             var evaluation = await EvaluateCertificateAsync(certificate.TraineeId, certificate.CertificationTrackId, includeExistingCertificate: false);

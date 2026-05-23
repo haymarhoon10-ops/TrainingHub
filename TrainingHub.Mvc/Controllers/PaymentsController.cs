@@ -12,7 +12,7 @@ using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
-    [Authorize(Roles = RoleNames.TrainingCoordinator)]
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Trainee)]
     public class PaymentsController : Controller
     {
         private readonly TrainingHubDbContext _context;
@@ -25,8 +25,21 @@ namespace TrainingHub.Mvc.Controllers
         // GET: Payments
         public async Task<IActionResult> Index()
         {
-            var trainingHubDbContext = _context.Payments.Include(p => p.Enrollment).Include(p => p.Trainee);
-            return View(await trainingHubDbContext.ToListAsync());
+            var currentEmail = User.Identity?.Name;
+            IQueryable<Payment> trainingHubDbContext = _context.Payments
+                .Include(p => p.Enrollment)
+                    .ThenInclude(e => e.CourseSession)
+                        .ThenInclude(cs => cs.Course)
+                .Include(p => p.Trainee);
+
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                trainingHubDbContext = trainingHubDbContext.Where(payment => payment.Trainee != null && payment.Trainee.Email == currentEmail);
+            }
+
+            var payments = await trainingHubDbContext.ToListAsync();
+            await ApplyPaymentSummariesAsync(payments);
+            return View(payments);
         }
 
         // GET: Payments/Details/5
@@ -39,12 +52,24 @@ namespace TrainingHub.Mvc.Controllers
 
             var payment = await _context.Payments
                 .Include(p => p.Enrollment)
+                    .ThenInclude(e => e.CourseSession)
+                        .ThenInclude(cs => cs.Course)
                 .Include(p => p.Trainee)
                 .FirstOrDefaultAsync(m => m.Id == id);
             if (payment == null)
             {
                 return NotFound();
             }
+
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                if (!string.Equals(payment.Trainee?.Email, User.Identity?.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+            }
+
+            await ApplyPaymentSummariesAsync(new[] { payment });
 
             return View(payment);
         }
@@ -179,6 +204,16 @@ namespace TrainingHub.Mvc.Controllers
             var remaining = fee - totalPaid;
             if (remaining < 0) remaining = 0m;
             return remaining;
+        }
+
+        private async Task ApplyPaymentSummariesAsync(IEnumerable<Payment> payments)
+        {
+            foreach (var payment in payments)
+            {
+                var remaining = await GetRemainingBalanceAsync(payment.EnrollmentId, payment.Id);
+                payment.OutstandingBalance = remaining ?? 0m;
+                payment.IsOverdue = payment.OutstandingBalance > 0m && payment.PaidAt.Date < DateTime.UtcNow.Date;
+            }
         }
 
         // GET: Payments/Delete/5

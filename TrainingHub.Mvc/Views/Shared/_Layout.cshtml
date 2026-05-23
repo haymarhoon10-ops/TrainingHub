@@ -53,16 +53,12 @@
                                 <a class="nav-link text-dark" asp-controller="Courses" asp-action="Index">Courses</a>
                             </li>
 
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="CourseSessions" asp-action="Index">Sessions</a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Certificates" asp-action="Lookup">Public Lookup</a>
-                            </li>
-
                             @if (User.IsInRole(RoleNames.TrainingCoordinator))
                             {
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="CourseSessions" asp-action="Index">Sessions</a>
+                                </li>
+
                                 <li class="nav-item">
                                     <a class="nav-link text-dark" asp-controller="Courses" asp-action="Create">Create Course</a>
                                 </li>
@@ -102,6 +98,30 @@
                                     </ul>
                                 </li>
                             }
+                            else if (User.IsInRole(RoleNames.Instructor))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="CourseSessions" asp-action="Index">Sessions</a>
+                                </li>
+                            }
+                            else if (User.IsInRole(RoleNames.Trainee))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Enrollments" asp-action="Index">Enrollments</a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Certificates" asp-action="Index">Certificates</a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Payments" asp-action="Index">Payments</a>
+                                </li>
+                            }
+
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-controller="Certificates" asp-action="Lookup">Public Lookup</a>
+                            </li>
 
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-controller="Home" asp-action="Privacy">Privacy</a>

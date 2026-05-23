@@ -12,7 +12,7 @@ using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
-    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor + "," + RoleNames.Trainee)]
     public class EnrollmentsController : Controller
     {
         private static readonly HashSet<string> AllowedEnrollmentStatuses = new(StringComparer.Ordinal)
@@ -48,9 +48,22 @@ namespace TrainingHub.Mvc.Controllers
         // GET: Enrollments
         public async Task<IActionResult> Index()
         {
-            var trainingHubDbContext = _context.Enrollments
+            var currentEmail = User.Identity?.Name;
+            IQueryable<Enrollment> trainingHubDbContext = _context.Enrollments
                 .Include(e => e.CourseSession)
+                    .ThenInclude(cs => cs.Course)
+                .Include(e => e.CourseSession)
+                    .ThenInclude(cs => cs.Instructor)
                 .Include(e => e.Trainee);
+
+            if (User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                trainingHubDbContext = trainingHubDbContext.Where(e => e.CourseSession != null && e.CourseSession.Instructor != null && e.CourseSession.Instructor.Email == currentEmail);
+            }
+            else if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                trainingHubDbContext = trainingHubDbContext.Where(e => e.Trainee != null && e.Trainee.Email == currentEmail);
+            }
 
             return View(await trainingHubDbContext.ToListAsync());
         }
@@ -63,11 +76,29 @@ namespace TrainingHub.Mvc.Controllers
 
             var enrollment = await _context.Enrollments
                 .Include(e => e.CourseSession)
+                    .ThenInclude(cs => cs.Course)
+                .Include(e => e.CourseSession)
+                    .ThenInclude(cs => cs.Instructor)
                 .Include(e => e.Trainee)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
             if (enrollment == null)
                 return NotFound();
+
+            if (!User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                var currentEmail = User.Identity?.Name;
+                var allowed = User.IsInRole(RoleNames.Instructor)
+                    ? string.Equals(enrollment.CourseSession?.Instructor?.Email, currentEmail, StringComparison.OrdinalIgnoreCase)
+                    : User.IsInRole(RoleNames.Trainee)
+                        ? string.Equals(enrollment.Trainee?.Email, currentEmail, StringComparison.OrdinalIgnoreCase)
+                        : false;
+
+                if (!allowed)
+                {
+                    return Forbid();
+                }
+            }
 
             return View(enrollment);
         }

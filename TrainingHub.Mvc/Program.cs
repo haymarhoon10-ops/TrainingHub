@@ -69,6 +69,12 @@ using (var scope = app.Services.CreateScope())
         });
     }
 
+    var paymentTwo = await dbContext.Payments.FirstOrDefaultAsync(p => p.Id == 2);
+    if (paymentTwo != null && paymentTwo.AmountPaid != 300m)
+    {
+        paymentTwo.AmountPaid = 300m;
+    }
+
     if (dbContext.ChangeTracker.HasChanges())
     {
         await dbContext.SaveChangesAsync();
