@@ -43,6 +43,12 @@
 
                     <ul class="navbar-nav flex-grow-1">
 
+                        @{ 
+                            var isCoordinator = User.IsInRole(RoleNames.TrainingCoordinator);
+                            var isInstructor = User.IsInRole(RoleNames.Instructor);
+                            var isTrainee = User.IsInRole(RoleNames.Trainee);
+                        }
+
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
@@ -53,7 +59,7 @@
                                 <a class="nav-link text-dark" asp-controller="Courses" asp-action="Index">Courses</a>
                             </li>
 
-                            @if (User.IsInRole(RoleNames.TrainingCoordinator))
+                            @if (isCoordinator)
                             {
                                 <li class="nav-item">
                                     <a class="nav-link text-dark" asp-controller="CourseSessions" asp-action="Index">Sessions</a>
@@ -98,13 +104,15 @@
                                     </ul>
                                 </li>
                             }
-                            else if (User.IsInRole(RoleNames.Instructor))
+
+                            @if (isInstructor)
                             {
                                 <li class="nav-item">
                                     <a class="nav-link text-dark" asp-controller="CourseSessions" asp-action="Index">Sessions</a>
                                 </li>
                             }
-                            else if (User.IsInRole(RoleNames.Trainee))
+
+                            @if (isTrainee)
                             {
                                 <li class="nav-item">
                                     <a class="nav-link text-dark" asp-controller="Enrollments" asp-action="Index">Enrollments</a>
