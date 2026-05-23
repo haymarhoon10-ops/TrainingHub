@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html>
+﻿@using Microsoft.EntityFrameworkCore
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -124,6 +125,30 @@
 
                     </ul>
 
+                </div>
+
+                <div class="nav-item dropdown">
+                    @* Notifications dropdown: load only recent 10 *@
+                    <a class="nav-link dropdown-toggle" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Notifications</a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationsDropdown">
+                        @{
+                            var notifications = Context.RequestServices.GetService(typeof(TrainingHub.Data.TrainingHubDbContext)) as TrainingHub.Data.TrainingHubDbContext;
+                            var recent = notifications?.Notifications.OrderByDescending(n => n.CreatedAt).Take(10).Include(n => n.Trainee).Include(n => n.Instructor).ToList();
+                            if (recent == null || !recent.Any())
+                            {
+                                <li><span class="dropdown-item">No notifications</span></li>
+                            }
+                            else
+                            {
+                                foreach (var n in recent)
+                                {
+                                    <li><a class="dropdown-item" asp-controller="Notifications" asp-action="Details" asp-route-id="@n.Id">@n.Title</a></li>
+                                }
+                                <li><hr class="dropdown-divider" /></li>
+                                <li><a class="dropdown-item" asp-controller="Notifications" asp-action="Index">View All</a></li>
+                            }
+                        }
+                    </ul>
                 </div>
 
             </div>

@@ -63,9 +63,23 @@ namespace TrainingHub.Mvc.Controllers
         {
             if (ModelState.IsValid)
             {
-                _context.Add(payment);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                // Validate against remaining balance for the enrollment
+                var remaining = await GetRemainingBalanceAsync(payment.EnrollmentId);
+                if (remaining == null)
+                {
+                    ModelState.AddModelError("", "Enrollment or related course not found.");
+                }
+                else if (payment.AmountPaid > remaining.Value)
+                {
+                    ModelState.AddModelError(nameof(payment.AmountPaid), $"Payment exceeds remaining balance of {remaining.Value:C}.");
+                }
+
+                if (ModelState.ErrorCount == 0)
+                {
+                    _context.Add(payment);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
+                }
             }
             ViewData["EnrollmentId"] = new SelectList(_context.Enrollments, "Id", "AttendanceStatus", payment.EnrollmentId);
             ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", payment.TraineeId);
@@ -104,27 +118,64 @@ namespace TrainingHub.Mvc.Controllers
 
             if (ModelState.IsValid)
             {
-                try
+                // Validate against remaining balance for the enrollment excluding this payment
+                var remaining = await GetRemainingBalanceAsync(payment.EnrollmentId, payment.Id);
+                if (remaining == null)
                 {
-                    _context.Update(payment);
-                    await _context.SaveChangesAsync();
+                    ModelState.AddModelError("", "Enrollment or related course not found.");
                 }
-                catch (DbUpdateConcurrencyException)
+                else if (payment.AmountPaid > remaining.Value)
                 {
-                    if (!PaymentExists(payment.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    ModelState.AddModelError(nameof(payment.AmountPaid), $"Payment exceeds remaining balance of {remaining.Value:C}.");
                 }
-                return RedirectToAction(nameof(Index));
+
+                if (ModelState.ErrorCount == 0)
+                {
+                    try
+                    {
+                        _context.Update(payment);
+                        await _context.SaveChangesAsync();
+                    }
+                    catch (DbUpdateConcurrencyException)
+                    {
+                        if (!PaymentExists(payment.Id))
+                        {
+                            return NotFound();
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                    return RedirectToAction(nameof(Index));
+                }
             }
             ViewData["EnrollmentId"] = new SelectList(_context.Enrollments, "Id", "AttendanceStatus", payment.EnrollmentId);
             ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", payment.TraineeId);
             return View(payment);
+        }
+
+        // Returns remaining balance for the enrollment's course fee.
+        // If excludePaymentId is provided, that payment is omitted from the total paid (useful when editing).
+        private async Task<decimal?> GetRemainingBalanceAsync(int enrollmentId, int? excludePaymentId = null)
+        {
+            var enrollment = await _context.Enrollments
+                .Include(e => e.CourseSession)
+                    .ThenInclude(cs => cs.Course)
+                .FirstOrDefaultAsync(e => e.Id == enrollmentId);
+
+            if (enrollment == null || enrollment.CourseSession == null || enrollment.CourseSession.Course == null)
+                return null;
+
+            var fee = enrollment.CourseSession.Course.Fee;
+
+            var totalPaid = await _context.Payments
+                .Where(p => p.EnrollmentId == enrollmentId && (!excludePaymentId.HasValue || p.Id != excludePaymentId.Value))
+                .SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+
+            var remaining = fee - totalPaid;
+            if (remaining < 0) remaining = 0m;
+            return remaining;
         }
 
         // GET: Payments/Delete/5

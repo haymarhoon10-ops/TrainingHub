@@ -24,6 +24,9 @@ namespace TrainingHub.Models
 
         public int? TraineeId { get; set; }
         public int? InstructorId { get; set; }
+        [StringLength(500)]
+        public string? Link { get; set; } = "";
+
 
         public Trainee? Trainee { get; set; }
         public Instructor? Instructor { get; set; }

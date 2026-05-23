@@ -169,6 +169,28 @@ namespace TrainingHub.Mvc.Controllers
 
             if (enrollment == null)
                 return NotFound();
+            // If there are payments, mark for refund/credit instead of deleting
+            var payments = await _context.Payments.Where(p => p.EnrollmentId == enrollment.Id).ToListAsync();
+            if (payments.Any())
+            {
+                // Mark enrollment as Dropped and create a refund record via Notification for coordinator to process
+                enrollment.Status = "Dropped";
+                _context.Update(enrollment);
+
+                var totalPaid = payments.Sum(p => p.AmountPaid);
+                var notification = new Notification
+                {
+                    Title = "Enrollment Dropped - Refund Required",
+                    Message = $"Enrollment {enrollment.Id} was dropped. Total paid: {totalPaid:C}. Please process refund or credit.",
+                    Type = "Finance",
+                    TraineeId = enrollment.TraineeId,
+                    CreatedAt = DateTime.Now
+                };
+                _context.Notifications.Add(notification);
+
+                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
 
             try
             {
