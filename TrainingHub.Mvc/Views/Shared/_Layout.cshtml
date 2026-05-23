@@ -1,4 +1,5 @@
 ﻿@using Microsoft.EntityFrameworkCore
+@inject SignInManager<ApplicationUser> SignInManager
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -43,112 +44,92 @@
                     <ul class="navbar-nav flex-grow-1">
 
                         <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="Home"
-                               asp-action="Index">
-                                Home
-                            </a>
+                            <a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="Courses"
-                               asp-action="Index">
-                                Courses
-                            </a>
-                        </li>
+                        @if (SignInManager.IsSignedIn(User))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-controller="Courses" asp-action="Index">Courses</a>
+                            </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="CourseSessions"
-                               asp-action="Index">
-                                Sessions
-                            </a>
-                        </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-controller="CourseSessions" asp-action="Index">Sessions</a>
+                            </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="Enrollments"
-                               asp-action="Index">
-                                Enrollments
-                            </a>
-                        </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-controller="Certificates" asp-action="Lookup">Public Lookup</a>
+                            </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="CertificationTracks"
-                               asp-action="Index">
-                                Certifications
-                            </a>
-                        </li>
+                            @if (User.IsInRole(RoleNames.TrainingCoordinator))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Courses" asp-action="Create">Create Course</a>
+                                </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="Certificates"
-                               asp-action="Index">
-                                Certificates
-                            </a>
-                        </li>
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="UserRoles" asp-action="Index">Manage Users</a>
+                                </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="Certificates"
-                               asp-action="Lookup">
-                                Public Lookup
-                            </a>
-                        </li>
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Payments" asp-action="Index">Financials</a>
+                                </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="Payments"
-                               asp-action="Index">
-                                Payments
-                            </a>
-                        </li>
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Enrollments" asp-action="Index">Enrollments</a>
+                                </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="Home"
-                               asp-action="Privacy">
-                                Privacy
-                            </a>
-                        </li>
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="CertificationTracks" asp-action="Index">Certifications</a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Certificates" asp-action="Index">Certificates</a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Notifications" asp-action="Index">Notifications</a>
+                                </li>
+
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle text-dark" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Admin</a>
+                                    <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                                        <li><a class="dropdown-item" asp-controller="Categories" asp-action="Index">Categories</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Classrooms" asp-action="Index">Classrooms</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Instructors" asp-action="Index">Instructors</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Trainees" asp-action="Index">Trainees</a></li>
+                                        <li><a class="dropdown-item" asp-controller="UserRoles" asp-action="Index">User Roles</a></li>
+                                    </ul>
+                                </li>
+                            }
+
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                            </li>
+                        }
 
                     </ul>
 
-                </div>
-
-                <div class="nav-item dropdown">
-                    @* Notifications dropdown: load only recent 10 *@
-                    <a class="nav-link dropdown-toggle" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Notifications</a>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationsDropdown">
-                        @{
-                            var notifications = Context.RequestServices.GetService(typeof(TrainingHub.Data.TrainingHubDbContext)) as TrainingHub.Data.TrainingHubDbContext;
-                            var recent = notifications?.Notifications.OrderByDescending(n => n.CreatedAt).Take(10).Include(n => n.Trainee).Include(n => n.Instructor).ToList();
-                            if (recent == null || !recent.Any())
-                            {
-                                <li><span class="dropdown-item">No notifications</span></li>
-                            }
-                            else
-                            {
-                                foreach (var n in recent)
-                                {
-                                    <li><a class="dropdown-item" asp-controller="Notifications" asp-action="Details" asp-route-id="@n.Id">@n.Title</a></li>
-                                }
-                                <li><hr class="dropdown-divider" /></li>
-                                <li><a class="dropdown-item" asp-controller="Notifications" asp-action="Index">View All</a></li>
-                            }
+                    <ul class="navbar-nav">
+                        @if (SignInManager.IsSignedIn(User))
+                        {
+                            <li class="nav-item">
+                                <span class="nav-link text-dark">@User.Identity?.Name</span>
+                            </li>
+                            <li class="nav-item">
+                                <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-link nav-link text-dark">Logout</button>
+                                </form>
+                            </li>
+                        }
+                        else
+                        {
+                            <li class="nav-item"><a class="nav-link text-dark" asp-controller="Account" asp-action="Login">Login</a></li>
+                            <li class="nav-item"><a class="nav-link text-dark" asp-controller="Account" asp-action="Register">Register</a></li>
                         }
                     </ul>
+
                 </div>
 
             </div>
@@ -167,12 +148,8 @@
     <footer class="border-top footer text-muted">
 
         <div class="container">
-            &copy; 2026 - TrainingHub.Mvc -
-            <a asp-area=""
-               asp-controller="Home"
-               asp-action="Privacy">
-                Privacy
-            </a>
+                &copy; 2026 - TrainingHub.Mvc -
+            <a asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
 
     </footer>

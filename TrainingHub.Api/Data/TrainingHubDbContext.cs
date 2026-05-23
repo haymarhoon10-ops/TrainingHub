@@ -1,11 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
-using System;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Models;
 
 namespace TrainingHub.Data
 {
-    public class TrainingHubDbContext : DbContext
+    public class TrainingHubDbContext : IdentityDbContext<ApplicationUser, IdentityRole<int>, int>
     {
         public DbSet<Category> Categories { get; set; } = null!;
         public DbSet<Course> Courses { get; set; } = null!;

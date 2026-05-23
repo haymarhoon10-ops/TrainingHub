@@ -4,15 +4,18 @@ using System.Data;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Mvc.Models;
 using TrainingHub.Models;
+using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
     public class CertificatesController : Controller
     {
         private static readonly Regex CertificateReferencePattern = new("^[A-Za-z0-9-]+$", RegexOptions.Compiled);
@@ -85,6 +88,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Certificates/Create
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Create(int? traineeId = null, int? certificationTrackId = null)
         {
             await PopulateCertificateSelectListsAsync(traineeId, certificationTrackId);
@@ -109,6 +113,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // POST: Certificates/Create
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,TraineeId,CertificationTrackId,CertificateReferenceNumber,IssuedAt,Status")] Certificate certificate)
@@ -198,6 +203,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Certificates/Edit/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -219,6 +225,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // POST: Certificates/Edit/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,TraineeId,CertificationTrackId,CertificateReferenceNumber,IssuedAt,Status")] Certificate certificate)
@@ -267,6 +274,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Certificates/Delete/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -289,6 +297,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // POST: Certificates/Delete/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -322,12 +331,14 @@ namespace TrainingHub.Mvc.Controllers
             }
         }
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult Lookup()
         {
             return View(new CertificateLookupViewModel());
         }
 
+        [AllowAnonymous]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Lookup(CertificateLookupViewModel model)

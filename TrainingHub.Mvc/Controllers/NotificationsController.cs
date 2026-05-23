@@ -2,14 +2,17 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
     public class NotificationsController : Controller
     {
         private readonly TrainingHubDbContext _context;
@@ -80,6 +83,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Notifications/Create
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public IActionResult Create()
         {
             ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio");
@@ -90,6 +94,7 @@ namespace TrainingHub.Mvc.Controllers
         // POST: Notifications/Create
         // To protect from overposting attacks, enable the specific properties you want to bind to.
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,Title,Message,Type,CreatedAt,IsRead,TraineeId,InstructorId")] Notification notification)
@@ -121,6 +126,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Notifications/Edit/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -141,6 +147,7 @@ namespace TrainingHub.Mvc.Controllers
         // POST: Notifications/Edit/5
         // To protect from overposting attacks, enable the specific properties you want to bind to.
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,Title,Message,Type,CreatedAt,IsRead,TraineeId,InstructorId")] Notification notification)
@@ -176,6 +183,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Notifications/Delete/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -196,6 +204,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // POST: Notifications/Delete/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)

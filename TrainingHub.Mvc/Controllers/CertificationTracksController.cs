@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
+    [Authorize(Roles = RoleNames.TrainingCoordinator)]
     public class CertificationTracksController : Controller
     {
         private readonly TrainingHubDbContext _context;

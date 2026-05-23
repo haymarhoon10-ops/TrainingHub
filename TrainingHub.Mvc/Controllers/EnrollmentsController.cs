@@ -2,14 +2,17 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
     public class EnrollmentsController : Controller
     {
         private static readonly HashSet<string> AllowedEnrollmentStatuses = new(StringComparer.Ordinal)
@@ -70,6 +73,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Enrollments/Create
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public IActionResult Create()
         {
             PopulateDropdowns();
@@ -77,6 +81,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // POST: Enrollments/Create
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,TraineeId,CourseSessionId,Status,EnrolledAt,AttendanceStatus,ResultStatus,ResultRecordedAt")] Enrollment enrollment)
@@ -96,6 +101,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Enrollments/Edit/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -111,6 +117,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // POST: Enrollments/Edit/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,TraineeId,CourseSessionId,Status,EnrolledAt,AttendanceStatus,ResultStatus,ResultRecordedAt")] Enrollment enrollment)
@@ -144,6 +151,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Enrollments/Delete/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -161,6 +169,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // POST: Enrollments/Delete/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)

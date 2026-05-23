@@ -1,11 +1,14 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
+    [Authorize]
     public class CourseSessionsController : Controller
     {
         private readonly TrainingHubDbContext _context;
@@ -40,12 +43,14 @@ namespace TrainingHub.Mvc.Controllers
             return View(courseSession);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public IActionResult Create()
         {
             PopulateDropdowns();
             return View(new CourseSession());
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("CourseId,InstructorId,ClassroomId,StartDate,EndDate,Capacity,Status")] CourseSession courseSession)
@@ -65,6 +70,7 @@ namespace TrainingHub.Mvc.Controllers
             return View(courseSession);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
@@ -77,6 +83,7 @@ namespace TrainingHub.Mvc.Controllers
             return View(courseSession);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,CourseId,InstructorId,ClassroomId,StartDate,EndDate,Capacity,Status,CreatedAt")] CourseSession courseSession)
@@ -105,6 +112,7 @@ namespace TrainingHub.Mvc.Controllers
             return View(courseSession);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null) return NotFound();
@@ -120,6 +128,7 @@ namespace TrainingHub.Mvc.Controllers
             return View(courseSession);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
