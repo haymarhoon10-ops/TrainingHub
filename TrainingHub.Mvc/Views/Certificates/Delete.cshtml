@@ -2,6 +2,7 @@
 
 @{
     ViewData["Title"] = "Delete";
+    var isLocked = ViewBag.IsLocked != null && (bool)ViewBag.IsLocked;
 }
 
 <h1>Delete</h1>
@@ -10,6 +11,10 @@
 <div>
     <h4>Certificate</h4>
     <hr />
+    @if (isLocked)
+    {
+        <div class="alert alert-warning">Issued certificates cannot be deleted. Mark them as revoked instead.</div>
+    }
     <dl class="row">
         <dt class = "col-sm-2">
             @Html.DisplayNameFor(model => model.CertificateReferenceNumber)
@@ -33,19 +38,19 @@
             @Html.DisplayNameFor(model => model.Trainee)
         </dt>
         <dd class = "col-sm-10">
-            @Html.DisplayFor(model => model.Trainee.Email)
+            @(Model.Trainee?.Email ?? "Unknown trainee")
         </dd>
         <dt class = "col-sm-2">
             @Html.DisplayNameFor(model => model.CertificationTrack)
         </dt>
         <dd class = "col-sm-10">
-            @Html.DisplayFor(model => model.CertificationTrack.Description)
+            @(Model.CertificationTrack?.Description ?? "Unknown track")
         </dd>
     </dl>
     
     <form asp-action="Delete">
         <input type="hidden" asp-for="Id" />
-        <input type="submit" value="Delete" class="btn btn-danger" /> |
+        <input type="submit" value="Delete" class="btn btn-danger" disabled="@isLocked" /> |
         <a asp-action="Index">Back to List</a>
     </form>
 </div>

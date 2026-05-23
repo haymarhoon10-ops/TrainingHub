@@ -2,6 +2,7 @@
 
 @{
     ViewData["Title"] = "Edit";
+    var isLocked = ViewBag.IsLocked != null && (bool)ViewBag.IsLocked;
 }
 
 <h1>Edit</h1>
@@ -12,34 +13,38 @@
     <div class="col-md-4">
         <form asp-action="Edit">
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            @if (isLocked)
+            {
+                <div class="alert alert-warning">Issued certificates are locked and cannot be edited.</div>
+            }
             <input type="hidden" asp-for="Id" />
             <div class="form-group">
                 <label asp-for="TraineeId" class="control-label"></label>
-                <select asp-for="TraineeId" class="form-control" asp-items="ViewBag.TraineeId"></select>
+                <select asp-for="TraineeId" class="form-control" asp-items="ViewBag.TraineeId" disabled="@isLocked"></select>
                 <span asp-validation-for="TraineeId" class="text-danger"></span>
             </div>
             <div class="form-group">
                 <label asp-for="CertificationTrackId" class="control-label"></label>
-                <select asp-for="CertificationTrackId" class="form-control" asp-items="ViewBag.CertificationTrackId"></select>
+                <select asp-for="CertificationTrackId" class="form-control" asp-items="ViewBag.CertificationTrackId" disabled="@isLocked"></select>
                 <span asp-validation-for="CertificationTrackId" class="text-danger"></span>
             </div>
             <div class="form-group">
                 <label asp-for="CertificateReferenceNumber" class="control-label"></label>
-                <input asp-for="CertificateReferenceNumber" class="form-control" />
+                <input asp-for="CertificateReferenceNumber" class="form-control" readonly="@isLocked" />
                 <span asp-validation-for="CertificateReferenceNumber" class="text-danger"></span>
             </div>
             <div class="form-group">
                 <label asp-for="IssuedAt" class="control-label"></label>
-                <input asp-for="IssuedAt" class="form-control" />
+                <input asp-for="IssuedAt" class="form-control" readonly="@isLocked" />
                 <span asp-validation-for="IssuedAt" class="text-danger"></span>
             </div>
             <div class="form-group">
                 <label asp-for="Status" class="control-label"></label>
-                <input asp-for="Status" class="form-control" />
+                <input asp-for="Status" class="form-control" readonly="@isLocked" />
                 <span asp-validation-for="Status" class="text-danger"></span>
             </div>
             <div class="form-group">
-                <input type="submit" value="Save" class="btn btn-primary" />
+                <input type="submit" value="Save" class="btn btn-primary" disabled="@isLocked" />
             </div>
         </form>
     </div>

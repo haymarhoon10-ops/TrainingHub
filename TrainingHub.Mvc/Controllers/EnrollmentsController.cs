@@ -12,6 +12,29 @@ namespace TrainingHub.Mvc.Controllers
 {
     public class EnrollmentsController : Controller
     {
+        private static readonly HashSet<string> AllowedEnrollmentStatuses = new(StringComparer.Ordinal)
+        {
+            "Enrolled",
+            "Confirmed",
+            "Attending",
+            "Completed",
+            "Dropped"
+        };
+
+        private static readonly HashSet<string> AllowedAttendanceStatuses = new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "Present",
+            "Absent"
+        };
+
+        private static readonly HashSet<string> AllowedResultStatuses = new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "Pass",
+            "Fail"
+        };
+
         private readonly TrainingHubDbContext _context;
 
         public EnrollmentsController(TrainingHubDbContext context)
@@ -58,6 +81,7 @@ namespace TrainingHub.Mvc.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,TraineeId,CourseSessionId,Status,EnrolledAt,AttendanceStatus,ResultStatus,ResultRecordedAt")] Enrollment enrollment)
         {
+            ValidateEnrollmentLifecycleValues(enrollment);
             await ValidateEnrollmentRules(enrollment);
 
             if (ModelState.IsValid)
@@ -93,6 +117,9 @@ namespace TrainingHub.Mvc.Controllers
         {
             if (id != enrollment.Id)
                 return NotFound();
+
+            ValidateEnrollmentLifecycleValues(enrollment);
+            await ValidateEnrollmentRules(enrollment);
 
             if (ModelState.IsValid)
             {
@@ -179,7 +206,7 @@ namespace TrainingHub.Mvc.Controllers
                 return;
             }
 
-            if (session.Enrollments.Count >= session.Capacity)
+            if (session.Enrollments.Count(e => e.Id != enrollment.Id) >= session.Capacity)
             {
                 ModelState.AddModelError("", "This session is already full.");
             }
@@ -204,6 +231,24 @@ namespace TrainingHub.Mvc.Controllers
                         "",
                         "Trainee has not completed the prerequisite course.");
                 }
+            }
+        }
+
+        private void ValidateEnrollmentLifecycleValues(Enrollment enrollment)
+        {
+            if (!AllowedEnrollmentStatuses.Contains(enrollment.Status))
+            {
+                ModelState.AddModelError(nameof(Enrollment.Status), "Select a valid enrollment status.");
+            }
+
+            if (!AllowedAttendanceStatuses.Contains(enrollment.AttendanceStatus))
+            {
+                ModelState.AddModelError(nameof(Enrollment.AttendanceStatus), "Select a valid attendance status.");
+            }
+
+            if (!AllowedResultStatuses.Contains(enrollment.ResultStatus))
+            {
+                ModelState.AddModelError(nameof(Enrollment.ResultStatus), "Select a valid result status.");
             }
         }
 

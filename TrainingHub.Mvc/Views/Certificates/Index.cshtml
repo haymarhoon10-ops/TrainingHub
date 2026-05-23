@@ -7,7 +7,8 @@
 <h1>Index</h1>
 
 <p>
-    <a asp-action="Create">Create New</a>
+    <a asp-action="Create">Generate Certificate</a> |
+    <a asp-action="Lookup">Lookup Certificate</a>
 </p>
 <table class="table">
     <thead>
@@ -36,10 +37,10 @@
                 @Html.DisplayFor(modelItem => item.Status)
             </td>
             <td>
-                @Html.DisplayFor(modelItem => item.Trainee.FullName)
+                @(item.Trainee?.FullName ?? "Unknown trainee")
             </td>
             <td>
-                @Html.DisplayFor(modelItem => item.CertificationTrack.Name)
+                @(item.CertificationTrack?.Name ?? "Unknown track")
             </td>
             <td>
                 @((ViewBag.PassCounts != null && ViewBag.PassCounts[item.Id] != null) ? ViewBag.PassCounts[item.Id].ToString() : "0")

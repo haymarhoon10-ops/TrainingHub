@@ -100,7 +100,7 @@ namespace TrainingHub.Api.Migrations
                             Id = 1,
                             CertificateReferenceNumber = "CERT-0001",
                             CertificationTrackId = 1,
-                            IssuedAt = new DateTime(2026, 6, 15, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IssuedAt = new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = "Issued",
                             TraineeId = 1
                         });
@@ -462,6 +462,17 @@ namespace TrainingHub.Api.Migrations
                             CourseSessionId = 1,
                             EnrolledAt = new DateTime(2026, 5, 20, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             ResultRecordedAt = new DateTime(2026, 6, 11, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            ResultStatus = "Pass",
+                            Status = "Completed",
+                            TraineeId = 1
+                        },
+                        new
+                        {
+                            Id = 3,
+                            AttendanceStatus = "Present",
+                            CourseSessionId = 3,
+                            EnrolledAt = new DateTime(2026, 7, 5, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            ResultRecordedAt = new DateTime(2026, 8, 11, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             ResultStatus = "Pass",
                             Status = "Completed",
                             TraineeId = 1

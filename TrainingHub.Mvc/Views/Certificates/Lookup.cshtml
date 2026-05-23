@@ -1,0 +1,34 @@
+@model TrainingHub.Mvc.Models.CertificateLookupViewModel
+
+@{
+    ViewData["Title"] = "Certificate Lookup";
+}
+
+<h1>Certificate Lookup</h1>
+
+<p class="text-muted">Search by certificate reference number to view a public certificate record.</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Lookup" method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            @if (!string.IsNullOrWhiteSpace(Model?.ErrorMessage))
+            {
+                <div class="alert alert-warning">@Model.ErrorMessage</div>
+            }
+            <div class="form-group mb-3">
+                <label asp-for="ReferenceNumber" class="control-label"></label>
+                <input asp-for="ReferenceNumber" class="form-control" autocomplete="off" />
+                <span asp-validation-for="ReferenceNumber" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Search</button>
+                <a asp-action="Index" class="btn btn-outline-secondary">Back to list</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

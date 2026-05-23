@@ -1,18 +1,21 @@
 ﻿using System;
-using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
+using TrainingHub.Mvc.Models;
 using TrainingHub.Models;
 
 namespace TrainingHub.Mvc.Controllers
 {
     public class CertificatesController : Controller
     {
+        private static readonly Regex CertificateReferencePattern = new("^[A-Za-z0-9-]+$", RegexOptions.Compiled);
         private readonly TrainingHubDbContext _context;
 
         public CertificatesController(TrainingHubDbContext context)
@@ -33,32 +36,14 @@ namespace TrainingHub.Mvc.Controllers
             var remaining = new Dictionary<int, int>();
             var isEligible = new Dictionary<int, bool>();
 
-            foreach (var cert in certificates)
+            foreach (var certificate in certificates)
             {
-                var requiredCourseIds = _context.CertificationTrackCourses
-                    .Where(ctc => ctc.CertificationTrackId == cert.CertificationTrackId)
-                    .Select(ctc => ctc.CourseId)
-                    .ToList();
+                var evaluation = await EvaluateCertificateAsync(certificate.TraineeId, certificate.CertificationTrackId, includeExistingCertificate: false);
 
-                var total = requiredCourseIds.Count;
-
-                var passed = _context.Enrollments
-                    .Include(e => e.CourseSession)
-                    .Where(e => e.TraineeId == cert.TraineeId
-                                && e.ResultStatus == "Pass"
-                                && e.CourseSession != null
-                                && requiredCourseIds.Contains(e.CourseSession.CourseId))
-                    .Select(e => e.CourseSession!.CourseId)
-                    .Distinct()
-                    .Count();
-
-                var rem = Math.Max(0, total - passed);
-                var eligible = passed >= total && total > 0;
-
-                passCounts[cert.Id] = passed;
-                totalRequired[cert.Id] = total;
-                remaining[cert.Id] = rem;
-                isEligible[cert.Id] = eligible;
+                passCounts[certificate.Id] = evaluation.PassedCourses;
+                totalRequired[certificate.Id] = evaluation.TotalRequiredCourses;
+                remaining[certificate.Id] = evaluation.RemainingCourses;
+                isEligible[certificate.Id] = evaluation.IsEligible;
             }
 
             ViewBag.PassCounts = passCounts;
@@ -81,116 +66,135 @@ namespace TrainingHub.Mvc.Controllers
                 .Include(c => c.CertificationTrack)
                 .Include(c => c.Trainee)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (certificate == null)
             {
                 return NotFound();
             }
 
-            // compute progress for this certificate
-            var requiredCourseIds = _context.CertificationTrackCourses
-                .Where(ctc => ctc.CertificationTrackId == certificate.CertificationTrackId)
-                .Select(ctc => ctc.CourseId)
-                .ToList();
+            var evaluation = await EvaluateCertificateAsync(certificate.TraineeId, certificate.CertificationTrackId, includeExistingCertificate: false);
 
-            var total = requiredCourseIds.Count;
-
-            var passed = _context.Enrollments
-                .Include(e => e.CourseSession)
-                .Where(e => e.TraineeId == certificate.TraineeId
-                            && e.ResultStatus == "Pass"
-                            && e.CourseSession != null
-                            && requiredCourseIds.Contains(e.CourseSession.CourseId))
-                .Select(e => e.CourseSession!.CourseId)
-                .Distinct()
-                .Count();
-
-            var rem = Math.Max(0, total - passed);
-            var eligible = passed >= total && total > 0;
-
-            ViewBag.PassedCourses = passed;
-            ViewBag.TotalRequired = total;
-            ViewBag.RemainingCourses = rem;
-            ViewBag.IsEligible = eligible;
+            ViewBag.PassedCourses = evaluation.PassedCourses;
+            ViewBag.TotalRequired = evaluation.TotalRequiredCourses;
+            ViewBag.RemainingCourses = evaluation.RemainingCourses;
+            ViewBag.IsEligible = evaluation.IsEligible;
+            ViewBag.IsLocked = IsLockedCertificate(certificate);
+            ViewBag.EvaluationMessage = evaluation.ErrorMessage;
 
             return View(certificate);
         }
 
         // GET: Certificates/Create
-        public IActionResult Create()
+        public async Task<IActionResult> Create(int? traineeId = null, int? certificationTrackId = null)
         {
-            ViewData["CertificationTrackId"] = new SelectList(_context.CertificationTracks, "Id", "Description");
-            ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email");
+            await PopulateCertificateSelectListsAsync(traineeId, certificationTrackId);
+
+            if (traineeId.HasValue && certificationTrackId.HasValue)
+            {
+                var evaluation = await EvaluateCertificateAsync(traineeId.Value, certificationTrackId.Value);
+
+                if (evaluation.ExistingCertificate != null)
+                {
+                    return RedirectToAction(nameof(Details), new { id = evaluation.ExistingCertificate.Id });
+                }
+
+                ViewBag.PassedCourses = evaluation.PassedCourses;
+                ViewBag.TotalRequired = evaluation.TotalRequiredCourses;
+                ViewBag.RemainingCourses = evaluation.RemainingCourses;
+                ViewBag.IsEligible = evaluation.IsEligible;
+                ViewBag.EvaluationMessage = evaluation.ErrorMessage;
+            }
+
             return View();
         }
 
         // POST: Certificates/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,TraineeId,CertificationTrackId,CertificateReferenceNumber,IssuedAt,Status")] Certificate certificate)
         {
-            // basic validation
             if (certificate.TraineeId == 0 || certificate.CertificationTrackId == 0)
             {
-                ModelState.AddModelError("", "Please select trainee and certification track.");
+                ModelState.AddModelError(string.Empty, "Please select trainee and certification track.");
             }
 
-            // compute certification progress
-            var requiredCourseIds = _context.CertificationTrackCourses
-                .Where(ctc => ctc.CertificationTrackId == certificate.CertificationTrackId)
-                .Select(ctc => ctc.CourseId)
-                .ToList();
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
-            var total = requiredCourseIds.Count;
+            var evaluation = await EvaluateCertificateAsync(certificate.TraineeId, certificate.CertificationTrackId);
 
-            var passed = _context.Enrollments
-                .Include(e => e.CourseSession)
-                .Where(e => e.TraineeId == certificate.TraineeId
-                            && e.ResultStatus == "Pass"
-                            && e.CourseSession != null
-                            && requiredCourseIds.Contains(e.CourseSession.CourseId))
-                .Select(e => e.CourseSession!.CourseId)
-                .Distinct()
-                .Count();
-
-            var rem = Math.Max(0, total - passed);
-            var eligible = passed >= total && total > 0;
-
-            // prevent duplicate certificate for same trainee and track
-            var exists = _context.Certificates.Any(c => c.TraineeId == certificate.TraineeId && c.CertificationTrackId == certificate.CertificationTrackId);
-            if (exists)
+            if (evaluation.Trainee == null || evaluation.CertificationTrack == null)
             {
-                ModelState.AddModelError("", "This trainee already has a certificate for the selected certification track.");
+                ModelState.AddModelError(string.Empty, evaluation.ErrorMessage ?? "No certification data found.");
             }
-
-            if (!eligible)
+            else if (evaluation.ExistingCertificate != null)
             {
-                ModelState.AddModelError("", "Trainee is not eligible for this certificate. They must pass all required courses.");
+                await transaction.RollbackAsync();
+                return RedirectToAction(nameof(Details), new { id = evaluation.ExistingCertificate.Id });
+            }
+            else if (!evaluation.IsEligible)
+            {
+                ModelState.AddModelError(string.Empty, evaluation.ErrorMessage ?? "Not eligible for certification yet.");
             }
 
             if (!ModelState.IsValid)
             {
-                ViewData["CertificationTrackId"] = new SelectList(_context.CertificationTracks, "Id", "Description", certificate.CertificationTrackId);
-                ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", certificate.TraineeId);
-
-                // provide progress info back to view
-                ViewBag.PassedCourses = passed;
-                ViewBag.TotalRequired = total;
-                ViewBag.RemainingCourses = rem;
-                ViewBag.IsEligible = eligible;
-
+                await transaction.RollbackAsync();
+                await PopulateCertificateSelectListsAsync(certificate.TraineeId, certificate.CertificationTrackId);
+                ViewBag.PassedCourses = evaluation.PassedCourses;
+                ViewBag.TotalRequired = evaluation.TotalRequiredCourses;
+                ViewBag.RemainingCourses = evaluation.RemainingCourses;
+                ViewBag.IsEligible = evaluation.IsEligible;
+                ViewBag.EvaluationMessage = evaluation.ErrorMessage;
                 return View(certificate);
             }
 
-            // create certificate
-            certificate.CertificateReferenceNumber = GenerateCertificateReference();
+            var duplicate = await _context.Certificates.AnyAsync(c => c.TraineeId == certificate.TraineeId && c.CertificationTrackId == certificate.CertificationTrackId);
+
+            if (duplicate)
+            {
+                await transaction.RollbackAsync();
+                var existingCertificate = await _context.Certificates.AsNoTracking().FirstOrDefaultAsync(c => c.TraineeId == certificate.TraineeId && c.CertificationTrackId == certificate.CertificationTrackId);
+
+                if (existingCertificate != null)
+                {
+                    return RedirectToAction(nameof(Details), new { id = existingCertificate.Id });
+                }
+
+                ModelState.AddModelError(string.Empty, "This trainee already has a certificate for the selected certification track.");
+                await PopulateCertificateSelectListsAsync(certificate.TraineeId, certificate.CertificationTrackId);
+                ViewBag.PassedCourses = evaluation.PassedCourses;
+                ViewBag.TotalRequired = evaluation.TotalRequiredCourses;
+                ViewBag.RemainingCourses = evaluation.RemainingCourses;
+                ViewBag.IsEligible = evaluation.IsEligible;
+                ViewBag.EvaluationMessage = evaluation.ErrorMessage;
+                return View(certificate);
+            }
+
+            certificate.CertificateReferenceNumber = await GenerateUniqueCertificateReferenceAsync();
             certificate.Status = "Issued";
-            certificate.IssuedAt = DateTime.Now;
+            certificate.IssuedAt = DateTime.UtcNow;
 
             _context.Add(certificate);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch (DbUpdateException)
+            {
+                await transaction.RollbackAsync();
+                ModelState.AddModelError(string.Empty, "Unable to issue the certificate right now. Please try again.");
+                await PopulateCertificateSelectListsAsync(certificate.TraineeId, certificate.CertificationTrackId);
+                ViewBag.PassedCourses = evaluation.PassedCourses;
+                ViewBag.TotalRequired = evaluation.TotalRequiredCourses;
+                ViewBag.RemainingCourses = evaluation.RemainingCourses;
+                ViewBag.IsEligible = evaluation.IsEligible;
+                ViewBag.EvaluationMessage = evaluation.ErrorMessage;
+                return View(certificate);
+            }
+
+            return RedirectToAction(nameof(Details), new { id = certificate.Id });
         }
 
         // GET: Certificates/Edit/5
@@ -202,18 +206,19 @@ namespace TrainingHub.Mvc.Controllers
             }
 
             var certificate = await _context.Certificates.FindAsync(id);
+
             if (certificate == null)
             {
                 return NotFound();
             }
+
+            ViewBag.IsLocked = IsLockedCertificate(certificate);
             ViewData["CertificationTrackId"] = new SelectList(_context.CertificationTracks, "Id", "Description", certificate.CertificationTrackId);
             ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", certificate.TraineeId);
             return View(certificate);
         }
 
         // POST: Certificates/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,TraineeId,CertificationTrackId,CertificateReferenceNumber,IssuedAt,Status")] Certificate certificate)
@@ -221,6 +226,18 @@ namespace TrainingHub.Mvc.Controllers
             if (id != certificate.Id)
             {
                 return NotFound();
+            }
+
+            var existingCertificate = await _context.Certificates.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id);
+
+            if (existingCertificate == null)
+            {
+                return NotFound();
+            }
+
+            if (IsLockedCertificate(existingCertificate))
+            {
+                ModelState.AddModelError(string.Empty, "Issued certificates are locked and cannot be edited.");
             }
 
             if (ModelState.IsValid)
@@ -236,13 +253,14 @@ namespace TrainingHub.Mvc.Controllers
                     {
                         return NotFound();
                     }
-                    else
-                    {
-                        throw;
-                    }
+
+                    throw;
                 }
+
                 return RedirectToAction(nameof(Index));
             }
+
+            ViewBag.IsLocked = IsLockedCertificate(existingCertificate);
             ViewData["CertificationTrackId"] = new SelectList(_context.CertificationTracks, "Id", "Description", certificate.CertificationTrackId);
             ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", certificate.TraineeId);
             return View(certificate);
@@ -260,11 +278,13 @@ namespace TrainingHub.Mvc.Controllers
                 .Include(c => c.CertificationTrack)
                 .Include(c => c.Trainee)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (certificate == null)
             {
                 return NotFound();
             }
 
+            ViewBag.IsLocked = IsLockedCertificate(certificate);
             return View(certificate);
         }
 
@@ -276,7 +296,16 @@ namespace TrainingHub.Mvc.Controllers
             var certificate = await _context.Certificates.FindAsync(id);
 
             if (certificate == null)
+            {
                 return NotFound();
+            }
+
+            if (IsLockedCertificate(certificate))
+            {
+                ModelState.AddModelError(string.Empty, "Issued certificates cannot be deleted. Mark them as revoked instead.");
+                ViewBag.IsLocked = true;
+                return View("Delete", certificate);
+            }
 
             try
             {
@@ -287,9 +316,50 @@ namespace TrainingHub.Mvc.Controllers
             }
             catch (DbUpdateException)
             {
-                ModelState.AddModelError("", "Unable to delete certificate because related records exist.");
+                ModelState.AddModelError(string.Empty, "Unable to delete certificate because related records exist.");
+                ViewBag.IsLocked = IsLockedCertificate(certificate);
                 return View("Delete", certificate);
             }
+        }
+
+        [HttpGet]
+        public IActionResult Lookup()
+        {
+            return View(new CertificateLookupViewModel());
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Lookup(CertificateLookupViewModel model)
+        {
+            model.ReferenceNumber = model.ReferenceNumber?.Trim();
+
+            if (string.IsNullOrWhiteSpace(model.ReferenceNumber))
+            {
+                ModelState.AddModelError(nameof(model.ReferenceNumber), "Enter a certificate reference number.");
+            }
+            else if (model.ReferenceNumber.Length > 100 || !CertificateReferencePattern.IsMatch(model.ReferenceNumber))
+            {
+                ModelState.AddModelError(nameof(model.ReferenceNumber), "Use only letters, numbers, and hyphens.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var certificate = await _context.Certificates
+                .Include(c => c.CertificationTrack)
+                .Include(c => c.Trainee)
+                .FirstOrDefaultAsync(c => c.CertificateReferenceNumber == model.ReferenceNumber);
+
+            if (certificate == null)
+            {
+                model.ErrorMessage = "Certificate data temporarily unavailable.";
+                return View(model);
+            }
+
+            return View("PublicDetails", certificate);
         }
 
         private bool CertificateExists(int id)
@@ -297,12 +367,137 @@ namespace TrainingHub.Mvc.Controllers
             return _context.Certificates.Any(e => e.Id == id);
         }
 
+        private async Task PopulateCertificateSelectListsAsync(int? traineeId = null, int? certificationTrackId = null)
+        {
+            ViewData["CertificationTrackId"] = new SelectList(
+                await _context.CertificationTracks
+                    .AsNoTracking()
+                    .Where(ct => ct.IsActive)
+                    .OrderBy(ct => ct.Name)
+                    .ToListAsync(),
+                "Id",
+                "Description",
+                certificationTrackId);
+
+            ViewData["TraineeId"] = new SelectList(
+                await _context.Trainees
+                    .AsNoTracking()
+                    .Where(t => t.IsActive)
+                    .OrderBy(t => t.FullName)
+                    .ToListAsync(),
+                "Id",
+                "Email",
+                traineeId);
+        }
+
+        private async Task<CertificateEvaluationResult> EvaluateCertificateAsync(int traineeId, int certificationTrackId, bool includeExistingCertificate = true)
+        {
+            var trainee = await _context.Trainees
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == traineeId);
+
+            if (trainee == null)
+            {
+                return new CertificateEvaluationResult(null, null, null, 0, 0, 0, false, "Trainee not found.");
+            }
+
+            if (!trainee.IsActive)
+            {
+                return new CertificateEvaluationResult(trainee, null, null, 0, 0, 0, false, "Trainee is inactive and cannot receive a certificate.");
+            }
+
+            var track = await _context.CertificationTracks
+                .AsNoTracking()
+                .Include(ct => ct.CertificationTrackCourses)
+                .FirstOrDefaultAsync(ct => ct.Id == certificationTrackId);
+
+            if (track == null)
+            {
+                return new CertificateEvaluationResult(trainee, null, null, 0, 0, 0, false, "Certification track not found.");
+            }
+
+            if (!track.IsActive)
+            {
+                return new CertificateEvaluationResult(trainee, track, null, 0, 0, 0, false, "This certification track is inactive.");
+            }
+
+            var requiredCourseIds = track.CertificationTrackCourses
+                .Select(ctc => ctc.CourseId)
+                .Distinct()
+                .ToList();
+
+            var totalRequired = requiredCourseIds.Count;
+
+            var passedCourses = await _context.Enrollments
+                .AsNoTracking()
+                .Include(e => e.CourseSession)
+                .Where(e => e.TraineeId == traineeId
+                            && e.Status == "Completed"
+                            && e.ResultStatus == "Pass"
+                            && e.CourseSession != null
+                            && requiredCourseIds.Contains(e.CourseSession.CourseId))
+                .Select(e => e.CourseSession!.CourseId)
+                .Distinct()
+                .CountAsync();
+
+            var remainingCourses = Math.Max(0, totalRequired - passedCourses);
+            var isEligible = totalRequired > 0 && passedCourses >= totalRequired;
+            var existingCertificate = includeExistingCertificate
+                ? await _context.Certificates
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.TraineeId == traineeId && c.CertificationTrackId == certificationTrackId)
+                : null;
+
+            string? errorMessage = null;
+
+            if (totalRequired == 0)
+            {
+                errorMessage = "No certification data found for this track.";
+            }
+            else if (!isEligible)
+            {
+                errorMessage = "Not eligible for certification yet.";
+            }
+
+            return new CertificateEvaluationResult(trainee, track, existingCertificate, passedCourses, totalRequired, remainingCourses, isEligible, errorMessage);
+        }
+
+        private static bool IsLockedCertificate(Certificate certificate)
+        {
+            return string.Equals(certificate.Status, "Issued", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<string> GenerateUniqueCertificateReferenceAsync()
+        {
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                var reference = GenerateCertificateReference();
+                var exists = await _context.Certificates.AnyAsync(c => c.CertificateReferenceNumber == reference);
+
+                if (!exists)
+                {
+                    return reference;
+                }
+            }
+
+            throw new InvalidOperationException("Unable to generate a unique certificate reference number.");
+        }
+
         private string GenerateCertificateReference()
         {
-            // simple unique reference using timestamp and random
-            var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
-            var rand = new Random().Next(1000, 9999);
-            return $"CERT-{ts}-{rand}";
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            var random = Random.Shared.Next(1000, 9999);
+            return $"CERT-{timestamp}-{random}";
         }
+
+        private sealed record CertificateEvaluationResult(
+            Trainee? Trainee,
+            CertificationTrack? CertificationTrack,
+            Certificate? ExistingCertificate,
+            int PassedCourses,
+            int TotalRequiredCourses,
+            int RemainingCourses,
+            bool IsEligible,
+            string? ErrorMessage);
     }
 }

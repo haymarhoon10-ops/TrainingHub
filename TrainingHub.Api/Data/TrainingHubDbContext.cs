@@ -296,6 +296,17 @@ namespace TrainingHub.Data
                },
 new
 {
+    Id = 3,
+    TraineeId = 1,
+    CourseSessionId = 3,
+    Status = "Completed",
+    EnrolledAt = new DateTime(2026, 7, 5),
+    AttendanceStatus = "Present",
+    ResultStatus = "Pass",
+    ResultRecordedAt = new DateTime(2026, 8, 11)
+},
+new
+{
     Id = 2,
     TraineeId = 2,
     CourseSessionId = 2,
@@ -312,7 +323,7 @@ new
             );
 
             modelBuilder.Entity<Certificate>().HasData(
-                new { Id = 1, TraineeId = 1, CertificationTrackId = 1, CertificateReferenceNumber = "CERT-0001", IssuedAt = new DateTime(2026, 6, 15), Status = "Issued" }
+                new { Id = 1, TraineeId = 1, CertificationTrackId = 1, CertificateReferenceNumber = "CERT-0001", IssuedAt = new DateTime(2026, 8, 15), Status = "Issued" }
             );
 
             modelBuilder.Entity<Notification>().HasData(
