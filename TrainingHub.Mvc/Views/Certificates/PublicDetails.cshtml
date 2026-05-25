@@ -1,32 +1,51 @@
-@model TrainingHub.Models.Certificate
+@model TrainingHub.Mvc.Models.PublicCertificateDetailsViewModel
 
 @{
-    ViewData["Title"] = "Public Certificate Details";
+    ViewData["Title"] = "Certification Verification Result";
 }
 
-<h1>Certificate Details</h1>
+<h1>Certification Verification Result</h1>
 
-<div class="alert alert-info">
-    This is a public certificate record. Only non-sensitive certificate data is shown.
+<div class="alert alert-success">
+    Certificate record found. Only public certification information is displayed.
 </div>
 
 <div>
-    <h4>Certificate</h4>
+    <h4>Certificate Details</h4>
     <hr />
     <dl class="row">
         <dt class="col-sm-2">Reference</dt>
         <dd class="col-sm-10">@Model.CertificateReferenceNumber</dd>
-        <dt class="col-sm-2">Issued At</dt>
-        <dd class="col-sm-10">@Model.IssuedAt</dd>
+        <dt class="col-sm-2">Issue Date</dt>
+        <dd class="col-sm-10">@Model.IssueDate</dd>
         <dt class="col-sm-2">Status</dt>
         <dd class="col-sm-10">@Model.Status</dd>
         <dt class="col-sm-2">Trainee</dt>
-        <dd class="col-sm-10">@(Model.Trainee?.FullName ?? "Unknown trainee")</dd>
+        <dd class="col-sm-10">@Model.TraineeName</dd>
         <dt class="col-sm-2">Certification Track</dt>
-        <dd class="col-sm-10">@(Model.CertificationTrack?.Name ?? "Unknown track")</dd>
+        <dd class="col-sm-10">@Model.CertificationTrack</dd>
+        <dt class="col-sm-2">Track Description</dt>
+        <dd class="col-sm-10">@Model.TrackDescription</dd>
     </dl>
 </div>
 
+<div class="mt-4">
+    <h4>Completed Courses</h4>
+    @if (Model.CompletedCourses.Count > 0)
+    {
+        <ul class="list-group mb-3">
+            @foreach (var course in Model.CompletedCourses)
+            {
+                <li class="list-group-item">@course</li>
+            }
+        </ul>
+    }
+    else
+    {
+        <p class="text-muted">No completed courses were reported for this certification track.</p>
+    }
+</div>
+
 <div>
-    <a asp-action="Lookup">Lookup another certificate</a>
+    <a asp-action="Lookup" class="btn btn-outline-primary">Verify another certificate</a>
 </div>

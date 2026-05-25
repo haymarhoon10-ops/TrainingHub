@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
@@ -14,6 +15,7 @@ namespace TrainingHub.Api.Controllers
     [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public class CertificatesController : ControllerBase
     {
+        private static readonly Regex CertificateReferencePattern = new("^[A-Za-z0-9-]+$", RegexOptions.Compiled);
         private readonly TrainingHubDbContext _context;
 
         public CertificatesController(TrainingHubDbContext context)
@@ -47,12 +49,17 @@ namespace TrainingHub.Api.Controllers
         public async Task<IActionResult> Lookup([FromQuery] int traineeId, [FromQuery] string? reference)
         {
             if (traineeId <= 0)
-                return BadRequest("Invalid traineeId.");
+                return BadRequest(new { Message = "Enter a valid trainee ID." });
 
+            reference = reference?.Trim();
             if (string.IsNullOrWhiteSpace(reference))
-                return BadRequest("Reference is required.");
+                return BadRequest(new { Message = "Certificate reference number is required." });
+
+            if (reference.Length > 100 || !CertificateReferencePattern.IsMatch(reference))
+                return BadRequest(new { Message = "Certificate reference number format is invalid." });
 
             var cert = await _context.Certificates
+                .AsNoTracking()
                 .Include(c => c.Trainee)
                 .Include(c => c.CertificationTrack)
                 .FirstOrDefaultAsync(c => c.TraineeId == traineeId && c.CertificateReferenceNumber == reference);
@@ -60,12 +67,29 @@ namespace TrainingHub.Api.Controllers
             if (cert == null)
                 return NotFound();
 
+            var completedCourses = await _context.Enrollments
+                .AsNoTracking()
+                .Where(e => e.TraineeId == traineeId
+                            && e.Status == "Completed"
+                            && e.ResultStatus == "Pass"
+                            && e.CourseSession != null
+                            && e.CourseSession.Course != null
+                            && e.CourseSession.Course.CertificationTrackCourses
+                                .Any(ctc => ctc.CertificationTrackId == cert.CertificationTrackId))
+                .Select(e => e.CourseSession!.Course!.Title)
+                .Distinct()
+                .OrderBy(title => title)
+                .ToListAsync();
+
             var result = new
             {
-                Status = "Valid",
+                CertificateReferenceNumber = cert.CertificateReferenceNumber,
+                Status = cert.Status,
                 TraineeName = cert.Trainee?.FullName ?? string.Empty,
                 CertificationTrack = cert.CertificationTrack?.Name ?? string.Empty,
-                IssueDate = cert.IssuedAt.ToString("yyyy-MM-dd")
+                TrackDescription = cert.CertificationTrack?.Description ?? string.Empty,
+                IssueDate = cert.IssuedAt.ToString("yyyy-MM-dd"),
+                CompletedCourses = completedCourses
             };
 
             return Ok(result);

@@ -7,7 +7,21 @@ using TrainingHub.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews()
+    .ConfigureApplicationPartManager(manager =>
+    {
+        var apiPart = manager.ApplicationParts
+            .FirstOrDefault(part => part.Name == "TrainingHub.Api");
+
+        if (apiPart != null)
+        {
+            manager.ApplicationParts.Remove(apiPart);
+        }
+    });
+builder.Services.AddHttpClient("TrainingHubApi", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5079/");
+});
 
 builder.Services.AddDbContext<TrainingHubDbContext>(options =>
 {
@@ -42,44 +56,7 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<TrainingHubDbContext>();
     dbContext.Database.Migrate();
-
-    var targetIssuedAt = new DateTime(2026, 8, 15);
-    var targetResultRecordedAt = new DateTime(2026, 8, 11);
-
-    var certificate = await dbContext.Certificates.FirstOrDefaultAsync(c => c.Id == 1);
-    if (certificate != null && certificate.IssuedAt != targetIssuedAt)
-    {
-        certificate.IssuedAt = targetIssuedAt;
-        certificate.Status = "Issued";
-    }
-
-    var extraEnrollmentExists = await dbContext.Enrollments.AnyAsync(e => e.Id == 3);
-    if (!extraEnrollmentExists)
-    {
-        dbContext.Enrollments.Add(new Enrollment
-        {
-            Id = 3,
-            TraineeId = 1,
-            CourseSessionId = 3,
-            Status = "Completed",
-            EnrolledAt = new DateTime(2026, 7, 5),
-            AttendanceStatus = "Present",
-            ResultStatus = "Pass",
-            ResultRecordedAt = targetResultRecordedAt
-        });
-    }
-
-    var paymentTwo = await dbContext.Payments.FirstOrDefaultAsync(p => p.Id == 2);
-    if (paymentTwo != null && paymentTwo.AmountPaid != 300m)
-    {
-        paymentTwo.AmountPaid = 300m;
-    }
-
-    if (dbContext.ChangeTracker.HasChanges())
-    {
-        await dbContext.SaveChangesAsync();
-    }
-
+    await SqlSeedDataInitializer.SeedAsync(dbContext);
     await IdentitySchemaInitializer.EnsureCreatedAsync(dbContext);
 }
 

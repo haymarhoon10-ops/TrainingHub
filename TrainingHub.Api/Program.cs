@@ -116,6 +116,7 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<TrainingHubDbContext>();
     await dbContext.Database.MigrateAsync();
+    await SqlSeedDataInitializer.SeedAsync(dbContext);
     await IdentitySchemaInitializer.EnsureCreatedAsync(dbContext);
 }
 

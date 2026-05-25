@@ -4,9 +4,9 @@
     ViewData["Title"] = "Certificate Lookup";
 }
 
-<h1>Certificate Lookup</h1>
+<h1>Public Certification Verification</h1>
 
-<p class="text-muted">Search by certificate reference number to view a public certificate record.</p>
+<p class="text-muted">Enter the trainee ID and certificate reference number to confirm an issued certification. No login is required.</p>
 
 <div class="row">
     <div class="col-md-6">
@@ -17,13 +17,17 @@
                 <div class="alert alert-warning">@Model.ErrorMessage</div>
             }
             <div class="form-group mb-3">
+                <label asp-for="TraineeId" class="control-label"></label>
+                <input asp-for="TraineeId" class="form-control" autocomplete="off" min="1" />
+                <span asp-validation-for="TraineeId" class="text-danger"></span>
+            </div>
+            <div class="form-group mb-3">
                 <label asp-for="ReferenceNumber" class="control-label"></label>
                 <input asp-for="ReferenceNumber" class="form-control" autocomplete="off" />
                 <span asp-validation-for="ReferenceNumber" class="text-danger"></span>
             </div>
             <div class="form-group">
-                <button type="submit" class="btn btn-primary">Search</button>
-                <a asp-action="Index" class="btn btn-outline-secondary">Back to list</a>
+                <button type="submit" class="btn btn-primary">Verify certificate</button>
             </div>
         </form>
     </div>

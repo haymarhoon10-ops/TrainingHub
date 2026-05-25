@@ -2,7 +2,8 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text.RegularExpressions;
+using System.Net;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,12 +19,13 @@ namespace TrainingHub.Mvc.Controllers
     [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Trainee)]
     public class CertificatesController : Controller
     {
-        private static readonly Regex CertificateReferencePattern = new("^[A-Za-z0-9-]+$", RegexOptions.Compiled);
         private readonly TrainingHubDbContext _context;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public CertificatesController(TrainingHubDbContext context)
+        public CertificatesController(TrainingHubDbContext context, IHttpClientFactory httpClientFactory)
         {
             _context = context;
+            _httpClientFactory = httpClientFactory;
         }
 
         // GET: Certificates
@@ -361,32 +363,51 @@ namespace TrainingHub.Mvc.Controllers
         {
             model.ReferenceNumber = model.ReferenceNumber?.Trim();
 
-            if (string.IsNullOrWhiteSpace(model.ReferenceNumber))
-            {
-                ModelState.AddModelError(nameof(model.ReferenceNumber), "Enter a certificate reference number.");
-            }
-            else if (model.ReferenceNumber.Length > 100 || !CertificateReferencePattern.IsMatch(model.ReferenceNumber))
-            {
-                ModelState.AddModelError(nameof(model.ReferenceNumber), "Use only letters, numbers, and hyphens.");
-            }
-
             if (!ModelState.IsValid)
             {
                 return View(model);
             }
 
-            var certificate = await _context.Certificates
-                .Include(c => c.CertificationTrack)
-                .Include(c => c.Trainee)
-                .FirstOrDefaultAsync(c => c.CertificateReferenceNumber == model.ReferenceNumber);
+            var client = _httpClientFactory.CreateClient("TrainingHubApi");
+            var requestPath = $"api/Certificates/Lookup?traineeId={model.TraineeId}&reference={Uri.EscapeDataString(model.ReferenceNumber!)}";
 
-            if (certificate == null)
+            try
             {
-                model.ErrorMessage = "Certificate data temporarily unavailable.";
+                using var response = await client.GetAsync(requestPath);
+
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    model.ErrorMessage = "No certificate matched that trainee ID and reference number.";
+                    return View(model);
+                }
+
+                if (response.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    model.ErrorMessage = "Enter a valid trainee ID and certificate reference number.";
+                    return View(model);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    model.ErrorMessage = "Certificate verification is temporarily unavailable. Please try again.";
+                    return View(model);
+                }
+
+                var certificate = await response.Content.ReadFromJsonAsync<PublicCertificateDetailsViewModel>();
+
+                if (certificate == null)
+                {
+                    model.ErrorMessage = "Certificate verification returned an invalid response. Please try again.";
+                    return View(model);
+                }
+
+                return View("PublicDetails", certificate);
+            }
+            catch (HttpRequestException)
+            {
+                model.ErrorMessage = "Certificate verification service is unavailable. Please try again.";
                 return View(model);
             }
-
-            return View("PublicDetails", certificate);
         }
 
         private bool CertificateExists(int id)
