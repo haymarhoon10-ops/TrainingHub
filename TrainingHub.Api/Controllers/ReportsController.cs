@@ -59,5 +59,38 @@ namespace TrainingHub.Api.Controllers
 
             return Ok(stats);
         }
+
+        [HttpGet("revenue")]
+        public async Task<ActionResult<IEnumerable<RevenueReportDto>>> GetRevenueReport()
+        {
+            var revenueData = await _dbContext.Courses
+                // Include the Enrollments and then the Payments associated with those Enrollments
+                .Include(c => c.CourseSessions)
+                    .ThenInclude(cs => cs.Enrollments)
+                        .ThenInclude(e => e.Payments)
+                .Select(c => new RevenueReportDto
+                {
+                    CourseName = c.Title,
+
+                    // Expected Revenue: Number of total enrollments across all sessions * the course fee
+                    TotalExpectedRevenue = c.CourseSessions.SelectMany(cs => cs.Enrollments).Count() * c.Fee,
+
+                    // Total Collected: Summing the AmountPaid from the Payments table for all enrollments in this course
+                    TotalCollected = c.CourseSessions
+                        .SelectMany(cs => cs.Enrollments)
+                        .SelectMany(e => e.Payments)
+                        .Sum(p => p.AmountPaid),
+
+                    // Outstanding is simply Expected minus Collected
+                    TotalOutstanding = (c.CourseSessions.SelectMany(cs => cs.Enrollments).Count() * c.Fee) -
+                                        c.CourseSessions
+                                            .SelectMany(cs => cs.Enrollments)
+                                            .SelectMany(e => e.Payments)
+                                            .Sum(p => p.AmountPaid)
+                })
+                .ToListAsync();
+
+            return Ok(revenueData);
+        }
     }
 }

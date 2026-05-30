@@ -29,5 +29,11 @@ namespace TrainingHub.Reporting.Controllers
             var workloadData = await _reportService.GetInstructorWorkloadAsync();
             return View(workloadData);
         }
+        [HttpGet]
+        public async Task<IActionResult> Revenue()
+        {
+            var data = await _reportService.GetRevenueAsync();
+            return View(data);
+        }
     }
 }

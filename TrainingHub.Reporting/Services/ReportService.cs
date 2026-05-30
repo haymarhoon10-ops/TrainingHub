@@ -82,5 +82,28 @@ namespace TrainingHub.Reporting.Services
             var json = await response.Content.ReadAsStringAsync();
             return JsonSerializer.Deserialize<List<InstructorWorkloadDto>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<InstructorWorkloadDto>();
         }
+
+        public async Task<IEnumerable<RevenueReportDto>?> GetRevenueAsync()
+        {
+            var client = _httpClientFactory.CreateClient("TrainingHubApi");
+
+            // Grab the JWT from the context (You already wrote this logic!)
+            var token = _httpContextAccessor.HttpContext?.User.FindFirst("jwt")?.Value;
+            if (!string.IsNullOrEmpty(token))
+            {
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+
+            var response = await client.GetAsync("api/reports/revenue");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<IEnumerable<RevenueReportDto>>(content,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+
+            return null;
+        }
     }
 }
