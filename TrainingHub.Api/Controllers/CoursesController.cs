@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TrainingHub.Api.DTOs;
 using TrainingHub.Data;
 using TrainingHub.Models;
 
@@ -9,6 +11,7 @@ namespace TrainingHub.Api.Controllers
     [ApiController]
     [Authorize]
     [Route("api/courses")]
+    [Produces("application/json")]
     public class CoursesController : ControllerBase
     {
         private readonly TrainingHubDbContext _dbContext;
@@ -28,7 +31,7 @@ namespace TrainingHub.Api.Controllers
                 .OrderBy(course => course.Title)
                 .ToListAsync();
 
-            return Ok(courses.Select(BuildCourseResponse));
+            return Ok(courses.Select(BuildCourseResponse).ToList());
         }
 
         [HttpGet("{id:int}")]
@@ -46,18 +49,19 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Create([FromBody] Course request)
         {
             if (!await CategoryExistsAsync(request.CategoryId))
             {
-                return BadRequest(new { message = "The specified category does not exist." });
+                return BadRequest(new ErrorResponse { Message = "The specified category does not exist." });
             }
 
             if (request.PrerequisiteCourseId.HasValue)
             {
                 if (request.PrerequisiteCourseId.Value == request.Id)
                 {
-                    return BadRequest(new { message = "A course cannot be its own prerequisite." });
+                    return BadRequest(new ErrorResponse { Message = "A course cannot be its own prerequisite." });
                 }
 
                 if (!await CourseExistsAsync(request.PrerequisiteCourseId.Value))
@@ -88,6 +92,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Update(int id, [FromBody] Course request)
         {
             var course = await _dbContext.Courses.FirstOrDefaultAsync(entity => entity.Id == id);
@@ -99,19 +104,19 @@ namespace TrainingHub.Api.Controllers
 
             if (!await CategoryExistsAsync(request.CategoryId))
             {
-                return BadRequest(new { message = "The specified category does not exist." });
+                return BadRequest(new ErrorResponse { Message = "The specified category does not exist." });
             }
 
             if (request.PrerequisiteCourseId.HasValue)
             {
                 if (request.PrerequisiteCourseId.Value == id)
                 {
-                    return BadRequest(new { message = "A course cannot be its own prerequisite." });
+                    return BadRequest(new ErrorResponse { Message = "A course cannot be its own prerequisite." });
                 }
 
                 if (!await CourseExistsAsync(request.PrerequisiteCourseId.Value))
                 {
-                    return BadRequest(new { message = "The specified prerequisite course does not exist." });
+                    return BadRequest(new ErrorResponse { Message = "The specified prerequisite course does not exist." });
                 }
             }
 
@@ -133,6 +138,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Delete(int id)
         {
             var course = await _dbContext.Courses.FirstOrDefaultAsync(entity => entity.Id == id);
@@ -166,23 +172,21 @@ namespace TrainingHub.Api.Controllers
             return _dbContext.Courses.AnyAsync(course => course.Id == courseId);
         }
 
-        private static object BuildCourseResponse(Course course)
+        private static CourseResponse BuildCourseResponse(Course course)
         {
-            return new
+            return new CourseResponse
             {
-                course.Id,
-                course.Title,
-                course.Description,
-                course.DurationHours,
-                course.DefaultCapacity,
-                course.Fee,
-                course.IsActive,
-                course.CategoryId,
-                Category = course.Category == null ? null : new { course.Category.Id, course.Category.Name },
-                course.PrerequisiteCourseId,
-                PrerequisiteCourse = course.PrerequisiteCourse == null
-                    ? null
-                    : new { course.PrerequisiteCourse.Id, course.PrerequisiteCourse.Title }
+                Id = course.Id,
+                Title = course.Title,
+                Description = course.Description,
+                DurationHours = course.DurationHours,
+                DefaultCapacity = course.DefaultCapacity,
+                Fee = course.Fee,
+                IsActive = course.IsActive,
+                CategoryId = course.CategoryId,
+                CategoryName = course.Category?.Name ?? string.Empty,
+                PrerequisiteCourseId = course.PrerequisiteCourseId,
+                PrerequisiteCourseName = course.PrerequisiteCourse?.Title
             };
         }
 

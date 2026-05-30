@@ -9,7 +9,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddHttpClient("TrainingHubApi", client =>
 {
     client.BaseAddress = new Uri("https://localhost:7209/");
-});
+}).AddHttpMessageHandler<TrainingHub.Reporting.Services.TokenHandler>();
 
 // Setup Cookie Authentication
 builder.Services.AddAuthentication("ReportingCookie")

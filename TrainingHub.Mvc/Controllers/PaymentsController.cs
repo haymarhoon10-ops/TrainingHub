@@ -75,6 +75,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Payments/Create
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public IActionResult Create()
         {
             ViewData["EnrollmentId"] = new SelectList(_context.Enrollments, "Id", "AttendanceStatus");
@@ -85,6 +86,7 @@ namespace TrainingHub.Mvc.Controllers
         // POST: Payments/Create
         // To protect from overposting attacks, enable the specific properties you want to bind to.
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,TraineeId,EnrollmentId,AmountPaid,PaidAt,PaymentMethod,ReferenceNumber,Notes")] Payment payment)
@@ -115,6 +117,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Payments/Edit/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -135,6 +138,7 @@ namespace TrainingHub.Mvc.Controllers
         // POST: Payments/Edit/5
         // To protect from overposting attacks, enable the specific properties you want to bind to.
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,TraineeId,EnrollmentId,AmountPaid,PaidAt,PaymentMethod,ReferenceNumber,Notes")] Payment payment)
@@ -217,6 +221,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Payments/Delete/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -237,6 +242,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // POST: Payments/Delete/5
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)

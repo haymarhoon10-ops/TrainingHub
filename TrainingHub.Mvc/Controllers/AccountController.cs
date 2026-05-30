@@ -123,6 +123,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         [HttpPost]
+        [Authorize]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {

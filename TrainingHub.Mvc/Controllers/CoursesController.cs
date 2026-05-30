@@ -12,6 +12,7 @@ using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
+    // All authenticated users can view courses; only TrainingCoordinator can create/edit/delete
     [Authorize]
     public class CoursesController : Controller
     {
