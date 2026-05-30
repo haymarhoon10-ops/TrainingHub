@@ -4,10 +4,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 
 // Setup HttpClient to talk to your Web API
+// Add IHttpContextAccessor so TokenHandler can read the current user's claims
+builder.Services.AddHttpContextAccessor();
+
+// Register TokenHandler to attach JWT from user claims
+builder.Services.AddTransient<TrainingHub.Reporting.Services.TokenHandler>();
+
+// Setup HttpClient to talk to your Web API and attach JWT when available
 builder.Services.AddHttpClient("ApiClient", client =>
 {
     client.BaseAddress = new Uri("https://localhost:7209/");
-});
+}).AddHttpMessageHandler<TrainingHub.Reporting.Services.TokenHandler>();
 
 // Setup Cookie Authentication
 builder.Services.AddAuthentication("ReportingCookie")

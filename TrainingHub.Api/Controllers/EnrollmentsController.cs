@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "TrainingCoordinator,Instructor")]
         public async Task<IActionResult> GetAll()
         {
             var enrollments = await GetEnrollmentQuery()
@@ -39,10 +41,21 @@ namespace TrainingHub.Api.Controllers
                 return NotFound();
             }
 
+            // If the current user is a Trainee, allow access only to their own enrollments
+            if (User.IsInRole("Trainee"))
+            {
+                var userEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+                if (!string.Equals(userEmail, enrollment.Trainee?.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+            }
+
             return Ok(BuildEnrollmentResponse(enrollment));
         }
 
         [HttpPost]
+        [Authorize(Roles = "TrainingCoordinator,Instructor,Trainee")]
         public async Task<IActionResult> Create([FromBody] Enrollment request)
         {
             if (!await ReferencesExistAsync(request.TraineeId, request.CourseSessionId))
@@ -70,6 +83,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator,Instructor")]
         public async Task<IActionResult> Update(int id, [FromBody] Enrollment request)
         {
             var enrollment = await _dbContext.Enrollments.FirstOrDefaultAsync(entity => entity.Id == id);
@@ -100,6 +114,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator,Instructor")]
         public async Task<IActionResult> Delete(int id)
         {
             var enrollment = await _dbContext.Enrollments.FirstOrDefaultAsync(entity => entity.Id == id);

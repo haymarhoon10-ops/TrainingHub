@@ -43,6 +43,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Create([FromBody] CourseSession request)
         {
             if (!await ReferencesExistAsync(request.CourseId, request.InstructorId, request.ClassroomId))
@@ -76,6 +77,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Update(int id, [FromBody] CourseSession request)
         {
             var courseSession = await _dbContext.CourseSessions.FirstOrDefaultAsync(entity => entity.Id == id);
@@ -112,6 +114,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Delete(int id)
         {
             var courseSession = await _dbContext.CourseSessions.FirstOrDefaultAsync(entity => entity.Id == id);
