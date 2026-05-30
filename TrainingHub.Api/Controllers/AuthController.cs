@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TrainingHub.Models;
@@ -18,11 +19,13 @@ namespace TrainingHub.Api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IConfiguration _configuration;
         private readonly JwtOptions _jwtOptions;
 
-        public AuthController(UserManager<ApplicationUser> userManager, IOptions<JwtOptions> jwtOptions)
+        public AuthController(UserManager<ApplicationUser> userManager, IConfiguration configuration, IOptions<JwtOptions> jwtOptions)
         {
             _userManager = userManager;
+            _configuration = configuration;
             _jwtOptions = jwtOptions.Value;
         }
 

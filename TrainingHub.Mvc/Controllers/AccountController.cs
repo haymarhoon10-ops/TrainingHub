@@ -1,6 +1,11 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using TrainingHub.Models;
 using TrainingHub.Mvc.Models;
 using TrainingHub.Security;
@@ -11,13 +16,16 @@ namespace TrainingHub.Mvc.Controllers
     {
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IHttpClientFactory _httpClientFactory;
 
         public AccountController(
             SignInManager<ApplicationUser> signInManager,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            IHttpClientFactory httpClientFactory)
         {
             _signInManager = signInManager;
             _userManager = userManager;
+            _httpClientFactory = httpClientFactory;
         }
 
         [AllowAnonymous]
@@ -36,15 +44,37 @@ namespace TrainingHub.Mvc.Controllers
                 return View(model);
             }
 
-            var result = await _signInManager.PasswordSignInAsync(
-                model.Email,
-                model.Password,
-                model.RememberMe,
-                lockoutOnFailure: false);
+            // Verify the user credentials against the local Identity database
+            var user = await _userManager.FindByEmailAsync(model.Email);
 
-            if (result.Succeeded)
+            if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
             {
-                return LocalRedirect(model.ReturnUrl ?? Url.Action("Index", "Home")!);
+                // Request the JWT from the API using the configured client
+                var client = _httpClientFactory.CreateClient("TrainingHubApi");
+
+                var loginData = new { email = model.Email, password = model.Password };
+                var content = new StringContent(JsonSerializer.Serialize(loginData), Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync("api/auth/login", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    // Extract the JWT payload
+                    var jsonString = await response.Content.ReadAsStringAsync();
+                    using var jsonDoc = JsonDocument.Parse(jsonString);
+                    var token = jsonDoc.RootElement.GetProperty("accessToken").GetString();
+
+                    // Map the JWT to a secure claim for downstream service consumption
+                    var customClaims = new List<Claim>
+                    {
+                        new Claim("jwt", token ?? string.Empty)
+                    };
+
+                    // Establish the secure session cookie containing the required claims
+                    await _signInManager.SignInWithClaimsAsync(user, model.RememberMe, customClaims);
+
+                    return LocalRedirect(model.ReturnUrl ?? Url.Action("Index", "Home")!);
+                }
             }
 
             ModelState.AddModelError(string.Empty, "Invalid login attempt.");
