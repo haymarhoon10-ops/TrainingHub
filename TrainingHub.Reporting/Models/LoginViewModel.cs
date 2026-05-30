@@ -5,8 +5,15 @@ namespace TrainingHub.Reporting.Models
     public class LoginViewModel
     {
         [Required]
-        public required string Email { get; set; }
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
         [Required]
-        public required string Password { get; set; }
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+
+        public string? ReturnUrl { get; set; }
     }
 }

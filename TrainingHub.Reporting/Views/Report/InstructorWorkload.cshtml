@@ -1,0 +1,60 @@
+﻿@model IEnumerable<TrainingHub.Reporting.Models.InstructorWorkloadDto>
+
+@{
+    ViewData["Title"] = "Instructor Workload";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Instructor Workload Dashboard</h2>
+        <a asp-action="Index" class="btn btn-outline-secondary">Back to Enrollments</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover table-striped mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Instructor Name</th>
+                        <th>Department</th>
+                        <th class="text-center">Active Courses</th>
+                        <th class="text-center">Total Trainees</th>
+                        <th class="w-25">Workload Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var instructor in Model)
+                        {
+                            var workloadBadge = instructor.ActiveCourses >= 4 ? "bg-warning text-dark" : "bg-success";
+                            var workloadText = instructor.ActiveCourses >= 4 ? "High Capacity" : "Optimal";
+
+                            <tr>
+                                <td class="align-middle fw-bold">@instructor.InstructorName</td>
+                                <td class="align-middle">@instructor.Department</td>
+                                <td class="align-middle text-center">
+                                    <span class="badge @workloadBadge fs-6">
+                                        @instructor.ActiveCourses
+                                    </span>
+                                </td>
+                                <td class="align-middle text-center">@instructor.TotalTrainees</td>
+                                <td class="align-middle text-muted">
+                                    @workloadText
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">
+                                No instructor workload data available.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
