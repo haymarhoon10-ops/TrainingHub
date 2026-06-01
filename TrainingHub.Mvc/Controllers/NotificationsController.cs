@@ -12,7 +12,7 @@ using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
-    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor + "," + RoleNames.Trainee)]
     public class NotificationsController : Controller
     {
         private readonly TrainingHubDbContext _context;
@@ -25,8 +25,22 @@ namespace TrainingHub.Mvc.Controllers
         // GET: Notifications
         public async Task<IActionResult> Index()
         {
-            var trainingHubDbContext = _context.Notifications.Include(n => n.Instructor).Include(n => n.Trainee);
-            return View(await trainingHubDbContext.ToListAsync());
+            var currentEmail = User.Identity?.Name;
+            var notifications = _context.Notifications
+                .Include(n => n.Instructor)
+                .Include(n => n.Trainee)
+                .AsQueryable();
+
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                notifications = notifications.Where(n => n.Trainee != null && n.Trainee.Email == currentEmail);
+            }
+            else if (User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                notifications = notifications.Where(n => n.Instructor != null && n.Instructor.Email == currentEmail);
+            }
+
+            return View(await notifications.ToListAsync());
         }
 
         // GET: Notifications/Details/5
@@ -45,6 +59,21 @@ namespace TrainingHub.Mvc.Controllers
             if (notification == null)
             {
                 return NotFound();
+            }
+
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                if (!string.Equals(notification.Trainee?.Email, User.Identity?.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+            }
+            else if (User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                if (!string.Equals(notification.Instructor?.Email, User.Identity?.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
             }
 
             // If the notification links to a target record that doesn't exist, provide graceful message

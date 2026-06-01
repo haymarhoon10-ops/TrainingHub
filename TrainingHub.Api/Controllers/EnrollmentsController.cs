@@ -12,6 +12,29 @@ namespace TrainingHub.Api.Controllers
     [Route("api/enrollments")]
     public class EnrollmentsController : ControllerBase
     {
+        private static readonly HashSet<string> AllowedEnrollmentStatuses = new(StringComparer.Ordinal)
+        {
+            "Enrolled",
+            "Confirmed",
+            "Attending",
+            "Completed",
+            "Dropped"
+        };
+
+        private static readonly HashSet<string> AllowedAttendanceStatuses = new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "Present",
+            "Absent"
+        };
+
+        private static readonly HashSet<string> AllowedResultStatuses = new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "Pass",
+            "Fail"
+        };
+
         private readonly TrainingHubDbContext _dbContext;
 
         public EnrollmentsController(TrainingHubDbContext dbContext)
@@ -63,6 +86,28 @@ namespace TrainingHub.Api.Controllers
                 return BadRequest(new { message = "The specified trainee or course session does not exist." });
             }
 
+            if (User.IsInRole("Trainee"))
+            {
+                var currentTrainee = await GetCurrentTraineeAsync();
+                if (currentTrainee == null || currentTrainee.Id != request.TraineeId)
+                {
+                    return Forbid();
+                }
+
+                request.Status = "Enrolled";
+                request.AttendanceStatus = "Pending";
+                request.ResultStatus = "Pending";
+                request.ResultRecordedAt = null;
+            }
+
+            ValidateEnrollmentLifecycleValues(request);
+            await ValidateEnrollmentBusinessRulesAsync(request);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
             var enrollment = new Enrollment
             {
                 TraineeId = request.TraineeId,
@@ -96,6 +141,15 @@ namespace TrainingHub.Api.Controllers
             if (!await ReferencesExistAsync(request.TraineeId, request.CourseSessionId))
             {
                 return BadRequest(new { message = "The specified trainee or course session does not exist." });
+            }
+
+            ValidateEnrollmentLifecycleValues(request);
+            request.Id = id;
+            await ValidateEnrollmentBusinessRulesAsync(request);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
             }
 
             enrollment.TraineeId = request.TraineeId;
@@ -145,6 +199,79 @@ namespace TrainingHub.Api.Controllers
             var courseSessionExists = await _dbContext.CourseSessions.AnyAsync(courseSession => courseSession.Id == courseSessionId);
 
             return traineeExists && courseSessionExists;
+        }
+
+        private async Task<Trainee?> GetCurrentTraineeAsync()
+        {
+            var userEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                return null;
+            }
+
+            return await _dbContext.Trainees.FirstOrDefaultAsync(t => t.Email == userEmail);
+        }
+
+        private void ValidateEnrollmentLifecycleValues(Enrollment enrollment)
+        {
+            if (!AllowedEnrollmentStatuses.Contains(enrollment.Status))
+            {
+                ModelState.AddModelError(nameof(Enrollment.Status), "Select a valid enrollment status.");
+            }
+
+            if (!AllowedAttendanceStatuses.Contains(enrollment.AttendanceStatus))
+            {
+                ModelState.AddModelError(nameof(Enrollment.AttendanceStatus), "Select a valid attendance status.");
+            }
+
+            if (!AllowedResultStatuses.Contains(enrollment.ResultStatus))
+            {
+                ModelState.AddModelError(nameof(Enrollment.ResultStatus), "Select a valid result status.");
+            }
+        }
+
+        private async Task ValidateEnrollmentBusinessRulesAsync(Enrollment enrollment)
+        {
+            if (await _dbContext.Enrollments.AnyAsync(e =>
+                e.TraineeId == enrollment.TraineeId &&
+                e.CourseSessionId == enrollment.CourseSessionId &&
+                e.Id != enrollment.Id))
+            {
+                ModelState.AddModelError("", "This trainee is already enrolled in this session.");
+            }
+
+            var session = await _dbContext.CourseSessions
+                .Include(cs => cs.Enrollments)
+                .Include(cs => cs.Course)
+                .FirstOrDefaultAsync(cs => cs.Id == enrollment.CourseSessionId);
+
+            if (session == null)
+            {
+                ModelState.AddModelError("", "Selected course session does not exist.");
+                return;
+            }
+
+            if (session.Enrollments.Count(e => e.Id != enrollment.Id) >= session.Capacity)
+            {
+                ModelState.AddModelError("", "This session is already full.");
+            }
+
+            if (session.Course?.PrerequisiteCourseId != null)
+            {
+                var prerequisiteCompleted = await _dbContext.Enrollments
+                    .Include(e => e.CourseSession)
+                    .AnyAsync(e =>
+                        e.TraineeId == enrollment.TraineeId &&
+                        e.CourseSession != null &&
+                        e.CourseSession.CourseId == session.Course.PrerequisiteCourseId &&
+                        e.Status == "Completed" &&
+                        e.ResultStatus == "Pass");
+
+                if (!prerequisiteCompleted)
+                {
+                    ModelState.AddModelError("", "Trainee has not completed the prerequisite course.");
+                }
+            }
         }
 
         private static object BuildEnrollmentResponse(Enrollment enrollment)

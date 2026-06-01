@@ -32,8 +32,7 @@ namespace TrainingHub.Api.Controllers
 
                     string.IsNullOrEmpty(instructor.ExpertiseArea) ? "General" : instructor.ExpertiseArea,
 
-                    // (Note: If your CourseSession model uses a boolean like 'IsActive' instead of a string 'Status', update this line accordingly)
-                    instructor.CourseSessions.Count(cs => cs.Status == "1"),
+                    instructor.CourseSessions.Count(cs => cs.Status == "Scheduled"),
 
                     instructor.CourseSessions.SelectMany(cs => cs.Enrollments).Count()
                 ))
