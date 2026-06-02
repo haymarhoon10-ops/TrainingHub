@@ -4,12 +4,20 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<TokenHandler>();
+
+var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"];
+if (string.IsNullOrWhiteSpace(apiBaseUrl))
+{
+    throw new InvalidOperationException("Reporting API base URL is not configured. Set ApiSettings:BaseUrl in configuration.");
+}
 
 // Setup HttpClient to talk to your Web API
 builder.Services.AddHttpClient("TrainingHubApi", client =>
 {
-    client.BaseAddress = new Uri("https://localhost:7209/");
-}).AddHttpMessageHandler<TrainingHub.Reporting.Services.TokenHandler>();
+    client.BaseAddress = new Uri(apiBaseUrl);
+}).AddHttpMessageHandler<TokenHandler>();
 
 // Setup Cookie Authentication
 builder.Services.AddAuthentication("ReportingCookie")
@@ -19,9 +27,6 @@ builder.Services.AddAuthentication("ReportingCookie")
         options.LoginPath = "/Account/Login"; // Where to send users who aren't logged in
         options.AccessDeniedPath = "/Account/AccessDenied"; // Where to send users with the wrong role
     });
-
-// Allows the ReportService to look inside the HttpContext (the cookies/claims)
-builder.Services.AddHttpContextAccessor();
 
 // Registers the ReportService so we can inject it into our Controllers
 builder.Services.AddScoped<ReportService>();
