@@ -83,7 +83,7 @@ namespace TrainingHub.Reporting.Services
             return JsonSerializer.Deserialize<List<InstructorWorkloadDto>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<InstructorWorkloadDto>();
         }
 
-        public async Task<IEnumerable<RevenueReportDto>?> GetRevenueAsync()
+        public async Task<List<RevenueReportDto>> GetRevenueAsync()
         {
             var client = _httpClientFactory.CreateClient("TrainingHubApi");
 
@@ -99,11 +99,11 @@ namespace TrainingHub.Reporting.Services
             if (response.IsSuccessStatusCode)
             {
                 var content = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<IEnumerable<RevenueReportDto>>(content,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                return JsonSerializer.Deserialize<List<RevenueReportDto>>(content,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<RevenueReportDto>();
             }
 
-            return null;
+            return new List<RevenueReportDto>();
         }
     }
 }
