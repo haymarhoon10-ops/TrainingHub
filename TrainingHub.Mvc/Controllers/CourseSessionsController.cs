@@ -179,9 +179,26 @@ namespace TrainingHub.Mvc.Controllers
             var classroom = await _context.Classrooms
                 .FirstOrDefaultAsync(c => c.Id == courseSession.ClassroomId);
 
+            var course = await _context.Courses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == courseSession.CourseId);
+
             if (classroom != null && courseSession.Capacity > classroom.Capacity)
             {
                 ModelState.AddModelError("Capacity", $"Session capacity cannot exceed classroom capacity ({classroom.Capacity}).");
+            }
+
+            if (course != null && classroom != null)
+            {
+                if (course.RequiresProjector && !classroom.HasProjector)
+                {
+                    ModelState.AddModelError("ClassroomId", "This course requires a projector, but the selected classroom does not have one.");
+                }
+
+                if (course.RequiresLabComputer && !classroom.HasLabComputer)
+                {
+                    ModelState.AddModelError("ClassroomId", "This course requires lab computers, but the selected classroom does not provide them.");
+                }
             }
 
             var instructorConflict = await _context.CourseSessions.AnyAsync(cs =>
