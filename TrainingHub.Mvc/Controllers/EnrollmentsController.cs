@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Mvc.Realtime;
+using TrainingHub.Mvc.Services;
 using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
@@ -39,10 +41,12 @@ namespace TrainingHub.Mvc.Controllers
         };
 
         private readonly TrainingHubDbContext _context;
+        private readonly IRealtimeNotifier _realtimeNotifier;
 
-        public EnrollmentsController(TrainingHubDbContext context)
+        public EnrollmentsController(TrainingHubDbContext context, IRealtimeNotifier realtimeNotifier)
         {
             _context = context;
+            _realtimeNotifier = realtimeNotifier;
         }
 
         // GET: Enrollments
@@ -181,6 +185,64 @@ namespace TrainingHub.Mvc.Controllers
             return View(enrollment);
         }
 
+        [Authorize(Roles = RoleNames.Trainee)]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EnrollInSession(int courseSessionId)
+        {
+            var currentEmail = User.Identity?.Name;
+            var trainee = await _context.Trainees.FirstOrDefaultAsync(t => t.Email == currentEmail);
+
+            if (trainee == null)
+            {
+                TempData["EnrollmentError"] = "No trainee profile is linked to your account.";
+                return RedirectToAction("Details", "CourseSessions", new { id = courseSessionId });
+            }
+
+            var enrollment = new Enrollment
+            {
+                TraineeId = trainee.Id,
+                CourseSessionId = courseSessionId,
+                Status = "Enrolled",
+                EnrolledAt = DateTime.Now,
+                AttendanceStatus = "Pending",
+                ResultStatus = "Pending"
+            };
+
+            ValidateEnrollmentLifecycleValues(enrollment);
+            await ValidateEnrollmentRules(enrollment);
+
+            if (!ModelState.IsValid)
+            {
+                TempData["EnrollmentError"] = string.Join(" ", ModelState.Values
+                    .SelectMany(value => value.Errors)
+                    .Select(error => error.ErrorMessage)
+                    .Where(message => !string.IsNullOrWhiteSpace(message)));
+
+                return RedirectToAction("Details", "CourseSessions", new { id = courseSessionId });
+            }
+
+            _context.Enrollments.Add(enrollment);
+
+            var notification = new Notification
+            {
+                Title = "Enrollment Confirmed",
+                Message = $"You have been enrolled in session {courseSessionId}.",
+                Type = "Enrollment",
+                TraineeId = trainee.Id,
+                CreatedAt = DateTime.Now
+            };
+
+            _context.Notifications.Add(notification);
+
+            await _context.SaveChangesAsync();
+            await _realtimeNotifier.PublishEnrollmentCreatedAsync(enrollment, HttpContext.RequestAborted);
+            await _realtimeNotifier.PublishNotificationCreatedAsync(notification, HttpContext.RequestAborted);
+
+            TempData["EnrollmentSuccess"] = "You have been enrolled successfully.";
+            return RedirectToAction("Details", "CourseSessions", new { id = courseSessionId });
+        }
+
         // GET: Enrollments/Delete/5
         [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Delete(int? id)
@@ -268,7 +330,10 @@ namespace TrainingHub.Mvc.Controllers
                 return;
             }
 
-            if (session.Enrollments.Count(e => e.Id != enrollment.Id) >= session.Capacity)
+            if (session.Enrollments.Count(e =>
+                    e.Id != enrollment.Id &&
+                    EnrollmentCapacityRules.CountsTowardCapacity(e.Status)) >= session.Capacity &&
+                EnrollmentCapacityRules.CountsTowardCapacity(enrollment.Status))
             {
                 ModelState.AddModelError("", "This session is already full.");
             }

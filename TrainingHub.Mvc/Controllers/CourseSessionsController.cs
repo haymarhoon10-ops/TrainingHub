@@ -4,18 +4,21 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Mvc.Services;
 using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
-    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor + "," + RoleNames.Trainee)]
     public class CourseSessionsController : Controller
     {
         private readonly TrainingHubDbContext _context;
+        private readonly IRealtimeNotifier _realtimeNotifier;
 
-        public CourseSessionsController(TrainingHubDbContext context)
+        public CourseSessionsController(TrainingHubDbContext context, IRealtimeNotifier realtimeNotifier)
         {
             _context = context;
+            _realtimeNotifier = realtimeNotifier;
         }
 
         public async Task<IActionResult> Index()
