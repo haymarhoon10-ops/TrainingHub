@@ -6,9 +6,12 @@
 
 <h1>Index</h1>
 
-<p>
-    <a asp-action="Create">Create New</a>
-</p>
+@if (User.IsInRole(RoleNames.TrainingCoordinator))
+{
+    <p>
+        <a asp-action="Create">Create New</a>
+    </p>
+}
 <table class="table">
     <thead>
         <tr>
@@ -36,21 +39,25 @@
             <td>
                 @Html.DisplayFor(modelItem => item.IsActive)
             </td>
-                <td>
+            <td>
+                <a asp-action="Details" asp-route-id="@item.Id">Details</a>
+                @if (User.IsInRole(RoleNames.TrainingCoordinator))
+                {
+                    <span> | </span>
                     <a asp-action="Edit" asp-route-id="@item.Id">Edit</a>
                     <span> | </span>
-                    <a asp-action="Details" asp-route-id="@item.Id">Details</a>
-                    <span> | </span>
                     <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                }
+                @if (User.IsInRole(RoleNames.Trainee) && ViewBag.CurrentTraineeId != null)
+                {
                     <span> | </span>
-
                     <a asp-action="Progress"
-                       asp-route-traineeId="1"
-                       asp-route-trackId="@item.Id"
-                       class="btn btn-info btn-sm">
+                       asp-route-traineeId="@ViewBag.CurrentTraineeId"
+                       asp-route-trackId="@item.Id">
                         View Progress
                     </a>
-                </td>
+                }
+            </td>
         </tr>
 }
     </tbody>
