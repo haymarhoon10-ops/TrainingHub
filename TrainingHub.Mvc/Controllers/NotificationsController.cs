@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Mvc.Services;
 using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
@@ -16,10 +17,12 @@ namespace TrainingHub.Mvc.Controllers
     public class NotificationsController : Controller
     {
         private readonly TrainingHubDbContext _context;
+        private readonly IRealtimeNotifier _realtimeNotifier;
 
-        public NotificationsController(TrainingHubDbContext context)
+        public NotificationsController(TrainingHubDbContext context, IRealtimeNotifier realtimeNotifier)
         {
             _context = context;
+            _realtimeNotifier = realtimeNotifier;
         }
 
         // GET: Notifications
@@ -115,7 +118,7 @@ namespace TrainingHub.Mvc.Controllers
         [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public IActionResult Create()
         {
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio");
+            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Name");
             ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email");
             return View();
         }
@@ -145,11 +148,12 @@ namespace TrainingHub.Mvc.Controllers
                     notification.CreatedAt = DateTime.Now;
                     _context.Add(notification);
                     await _context.SaveChangesAsync();
+                    await _realtimeNotifier.PublishNotificationCreatedAsync(notification, HttpContext.RequestAborted);
                 }
 
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio", notification.InstructorId);
+            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Name", notification.InstructorId);
             ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", notification.TraineeId);
             return View(notification);
         }
@@ -168,7 +172,7 @@ namespace TrainingHub.Mvc.Controllers
             {
                 return NotFound();
             }
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio", notification.InstructorId);
+            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Name", notification.InstructorId);
             ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", notification.TraineeId);
             return View(notification);
         }
@@ -206,7 +210,7 @@ namespace TrainingHub.Mvc.Controllers
                 }
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Bio", notification.InstructorId);
+            ViewData["InstructorId"] = new SelectList(_context.Instructors, "Id", "Name", notification.InstructorId);
             ViewData["TraineeId"] = new SelectList(_context.Trainees, "Id", "Email", notification.TraineeId);
             return View(notification);
         }

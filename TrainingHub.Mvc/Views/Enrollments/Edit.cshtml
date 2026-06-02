@@ -67,6 +67,12 @@
             <div class="form-group">
                 <label asp-for="ResultRecordedAt" class="control-label"></label>
                 <input asp-for="ResultRecordedAt" class="form-control" />
+                @if (isAssessmentOnly && Model.CourseSession != null)
+                {
+                    <small class="form-text text-muted">
+                        Session time window: between @Model.CourseSession.StartDate.ToString("g") and @Model.CourseSession.EndDate.ToString("g").
+                    </small>
+                }
                 <span asp-validation-for="ResultRecordedAt" class="text-danger"></span>
             </div>
             <div class="form-group">
