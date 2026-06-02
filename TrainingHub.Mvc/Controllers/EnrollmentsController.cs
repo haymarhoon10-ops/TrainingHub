@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Mvc.Realtime;
+using TrainingHub.Mvc.Services;
 using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
@@ -39,10 +41,12 @@ namespace TrainingHub.Mvc.Controllers
         };
 
         private readonly TrainingHubDbContext _context;
+        private readonly IRealtimeNotifier _realtimeNotifier;
 
-        public EnrollmentsController(TrainingHubDbContext context)
+        public EnrollmentsController(TrainingHubDbContext context, IRealtimeNotifier realtimeNotifier)
         {
             _context = context;
+            _realtimeNotifier = realtimeNotifier;
         }
 
         // GET: Enrollments
@@ -124,6 +128,7 @@ namespace TrainingHub.Mvc.Controllers
             {
                 _context.Add(enrollment);
                 await _context.SaveChangesAsync();
+                await _realtimeNotifier.PublishEnrollmentCreatedAsync(enrollment, HttpContext.RequestAborted);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -132,23 +137,37 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         // GET: Enrollments/Edit/5
-        [Authorize(Roles = RoleNames.TrainingCoordinator)]
+        [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
                 return NotFound();
 
-            var enrollment = await _context.Enrollments.FindAsync(id);
+            var enrollment = await _context.Enrollments
+                .Include(e => e.CourseSession)
+                    .ThenInclude(cs => cs.Instructor)
+                .FirstOrDefaultAsync(e => e.Id == id);
 
             if (enrollment == null)
                 return NotFound();
+
+            if (User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                var currentEmail = User.Identity?.Name;
+                if (!string.Equals(enrollment.CourseSession?.Instructor?.Email, currentEmail, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+
+                ViewBag.IsAssessmentOnly = true;
+            }
 
             PopulateDropdowns(enrollment);
             return View(enrollment);
         }
 
         // POST: Enrollments/Edit/5
-        [Authorize(Roles = RoleNames.TrainingCoordinator)]
+        [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,TraineeId,CourseSessionId,Status,EnrolledAt,AttendanceStatus,ResultStatus,ResultRecordedAt")] Enrollment enrollment)
@@ -156,8 +175,82 @@ namespace TrainingHub.Mvc.Controllers
             if (id != enrollment.Id)
                 return NotFound();
 
+            if (User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                var instructorEnrollment = await _context.Enrollments
+                    .Include(e => e.CourseSession)
+                        .ThenInclude(cs => cs.Instructor)
+                    .FirstOrDefaultAsync(e => e.Id == id);
+
+                if (instructorEnrollment == null)
+                {
+                    return NotFound();
+                }
+
+                var currentEmail = User.Identity?.Name;
+                if (!string.Equals(instructorEnrollment.CourseSession?.Instructor?.Email, currentEmail, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+
+                if (instructorEnrollment.CourseSession != null && instructorEnrollment.CourseSession.EndDate > DateTime.UtcNow)
+                {
+                    ModelState.AddModelError(string.Empty, "Assessment results can only be recorded after the session ends.");
+                }
+
+                instructorEnrollment.AttendanceStatus = enrollment.AttendanceStatus;
+                instructorEnrollment.ResultStatus = enrollment.ResultStatus;
+                instructorEnrollment.ResultRecordedAt = string.Equals(enrollment.ResultStatus, "Pending", StringComparison.Ordinal)
+                    ? null
+                    : enrollment.ResultRecordedAt ?? DateTime.UtcNow;
+
+                if (!string.Equals(instructorEnrollment.Status, "Dropped", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(instructorEnrollment.ResultStatus, "Pending", StringComparison.Ordinal))
+                {
+                    instructorEnrollment.Status = "Completed";
+                }
+
+                ValidateEnrollmentLifecycleValues(instructorEnrollment);
+
+                if (!ModelState.IsValid)
+                {
+                    ViewBag.IsAssessmentOnly = true;
+                    PopulateDropdowns(instructorEnrollment);
+                    return View(instructorEnrollment);
+                }
+
+                Notification? resultNotification = null;
+                if (!string.Equals(instructorEnrollment.ResultStatus, "Pending", StringComparison.Ordinal))
+                {
+                    resultNotification = new Notification
+                    {
+                        Title = "Assessment Result Recorded",
+                        Message = $"Your result for session {instructorEnrollment.CourseSessionId} was recorded as {instructorEnrollment.ResultStatus}.",
+                        Type = "Assessment",
+                        TraineeId = instructorEnrollment.TraineeId,
+                        CreatedAt = DateTime.Now
+                    };
+
+                    _context.Notifications.Add(resultNotification);
+                }
+
+                await _context.SaveChangesAsync();
+
+                if (resultNotification != null)
+                {
+                    await _realtimeNotifier.PublishNotificationCreatedAsync(resultNotification, HttpContext.RequestAborted);
+                }
+
+                return RedirectToAction(nameof(Index));
+            }
+
             ValidateEnrollmentLifecycleValues(enrollment);
             await ValidateEnrollmentRules(enrollment);
+            var existingEnrollment = await _context.Enrollments
+                .AsNoTracking()
+                .Where(e => e.Id == id)
+                .Select(e => new { e.CourseSessionId })
+                .FirstOrDefaultAsync();
 
             if (ModelState.IsValid)
             {
@@ -174,11 +267,73 @@ namespace TrainingHub.Mvc.Controllers
                         throw;
                 }
 
+                await _realtimeNotifier.PublishEnrollmentUpdatedAsync(
+                    enrollment,
+                    existingEnrollment?.CourseSessionId,
+                    HttpContext.RequestAborted);
                 return RedirectToAction(nameof(Index));
             }
 
             PopulateDropdowns(enrollment);
             return View(enrollment);
+        }
+
+        [Authorize(Roles = RoleNames.Trainee)]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EnrollInSession(int courseSessionId)
+        {
+            var currentEmail = User.Identity?.Name;
+            var trainee = await _context.Trainees.FirstOrDefaultAsync(t => t.Email == currentEmail);
+
+            if (trainee == null)
+            {
+                TempData["EnrollmentError"] = "No trainee profile is linked to your account.";
+                return RedirectToAction("Details", "CourseSessions", new { id = courseSessionId });
+            }
+
+            var enrollment = new Enrollment
+            {
+                TraineeId = trainee.Id,
+                CourseSessionId = courseSessionId,
+                Status = "Enrolled",
+                EnrolledAt = DateTime.Now,
+                AttendanceStatus = "Pending",
+                ResultStatus = "Pending"
+            };
+
+            ValidateEnrollmentLifecycleValues(enrollment);
+            await ValidateEnrollmentRules(enrollment);
+
+            if (!ModelState.IsValid)
+            {
+                TempData["EnrollmentError"] = string.Join(" ", ModelState.Values
+                    .SelectMany(value => value.Errors)
+                    .Select(error => error.ErrorMessage)
+                    .Where(message => !string.IsNullOrWhiteSpace(message)));
+
+                return RedirectToAction("Details", "CourseSessions", new { id = courseSessionId });
+            }
+
+            _context.Enrollments.Add(enrollment);
+
+            var notification = new Notification
+            {
+                Title = "Enrollment Confirmed",
+                Message = $"You have been enrolled in session {courseSessionId}.",
+                Type = "Enrollment",
+                TraineeId = trainee.Id,
+                CreatedAt = DateTime.Now
+            };
+
+            _context.Notifications.Add(notification);
+
+            await _context.SaveChangesAsync();
+            await _realtimeNotifier.PublishEnrollmentCreatedAsync(enrollment, HttpContext.RequestAborted);
+            await _realtimeNotifier.PublishNotificationCreatedAsync(notification, HttpContext.RequestAborted);
+
+            TempData["EnrollmentSuccess"] = "You have been enrolled successfully.";
+            return RedirectToAction("Details", "CourseSessions", new { id = courseSessionId });
         }
 
         // GET: Enrollments/Delete/5
@@ -229,13 +384,19 @@ namespace TrainingHub.Mvc.Controllers
                 _context.Notifications.Add(notification);
 
                 await _context.SaveChangesAsync();
+                await _realtimeNotifier.PublishEnrollmentUpdatedAsync(enrollment, enrollment.CourseSessionId, HttpContext.RequestAborted);
+                await _realtimeNotifier.PublishNotificationCreatedAsync(notification, HttpContext.RequestAborted);
                 return RedirectToAction(nameof(Index));
             }
+
+            var courseSessionId = enrollment.CourseSessionId;
+            var enrollmentId = enrollment.Id;
 
             try
             {
                 _context.Enrollments.Remove(enrollment);
                 await _context.SaveChangesAsync();
+                await _realtimeNotifier.PublishEnrollmentDeletedAsync(courseSessionId, enrollmentId, HttpContext.RequestAborted);
 
                 return RedirectToAction(nameof(Index));
             }
@@ -268,7 +429,10 @@ namespace TrainingHub.Mvc.Controllers
                 return;
             }
 
-            if (session.Enrollments.Count(e => e.Id != enrollment.Id) >= session.Capacity)
+            if (session.Enrollments.Count(e =>
+                    e.Id != enrollment.Id &&
+                    EnrollmentCapacityRules.CountsTowardCapacity(e.Status)) >= session.Capacity &&
+                EnrollmentCapacityRules.CountsTowardCapacity(enrollment.Status))
             {
                 ModelState.AddModelError("", "This session is already full.");
             }

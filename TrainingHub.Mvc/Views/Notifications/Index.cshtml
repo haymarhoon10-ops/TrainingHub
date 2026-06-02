@@ -1,14 +1,20 @@
 ﻿@model IEnumerable<TrainingHub.Models.Notification>
 
+@using TrainingHub.Security
 @{
     ViewData["Title"] = "Index";
 }
 
 <h1>Index</h1>
 
-<p>
-    <a asp-action="Create">Create New</a>
-</p>
+@if (User.IsInRole(RoleNames.TrainingCoordinator))
+{
+    <p>
+        <a asp-action="Create">Create New</a>
+    </p>
+}
+<div class="alert alert-secondary d-none" data-live-notification-feed>
+</div>
 <table class="table">
     <thead>
         <tr>
@@ -36,9 +42,9 @@
             <th></th>
         </tr>
     </thead>
-    <tbody>
+    <tbody data-live-notification-table-body data-notification-can-manage="@(User.IsInRole(RoleNames.TrainingCoordinator).ToString().ToLowerInvariant())">
 @foreach (var item in Model) {
-        <tr>
+        <tr data-notification-id="@item.Id">
             <td>
                 @Html.DisplayFor(modelItem => item.Title)
             </td>
@@ -58,14 +64,17 @@
                 @Html.DisplayFor(modelItem => item.Trainee.Email)
             </td>
             <td>
-                @Html.DisplayFor(modelItem => item.Instructor.Bio)
+                @Html.DisplayFor(modelItem => item.Instructor.Name)
             </td>
             <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a>
-                <span> | </span>
                 <a asp-action="Details" asp-route-id="@item.Id">Details</a>
-                <span> | </span>
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                @if (User.IsInRole(RoleNames.TrainingCoordinator))
+                {
+                    <span> | </span>
+                    <a asp-action="Edit" asp-route-id="@item.Id">Edit</a>
+                    <span> | </span>
+                    <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                }
             </td>
         </tr>
 }

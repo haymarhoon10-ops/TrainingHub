@@ -26,7 +26,9 @@ namespace TrainingHub.Mvc.Controllers
         // GET: Courses
         public async Task<IActionResult> Index()
         {
-            var trainingHubDbContext = _context.Courses.Include(c => c.Category);
+            var trainingHubDbContext = _context.Courses
+                .Include(c => c.Category)
+                .Include(c => c.PrerequisiteCourse);
             return View(await trainingHubDbContext.ToListAsync());
         }
 
@@ -40,6 +42,7 @@ namespace TrainingHub.Mvc.Controllers
 
             var course = await _context.Courses
                 .Include(c => c.Category)
+                .Include(c => c.PrerequisiteCourse)
                 .FirstOrDefaultAsync(m => m.Id == id);
             if (course == null)
             {
@@ -53,7 +56,7 @@ namespace TrainingHub.Mvc.Controllers
         [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public IActionResult Create()
         {
-            ViewData["CategoryId"] = new SelectList(_context.Categories, "Id", "Description");
+            PopulateCourseDropdowns();
             return View();
         }
 
@@ -63,15 +66,17 @@ namespace TrainingHub.Mvc.Controllers
         [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Title,Description,DurationHours,DefaultCapacity,Fee,IsActive,CategoryId")] Course course)
+        public async Task<IActionResult> Create([Bind("Id,Title,Description,DurationHours,DefaultCapacity,Fee,IsActive,CategoryId,PrerequisiteCourseId,RequiresProjector,RequiresLabComputer")] Course course)
         {
+            ValidateCourseRequirements(course);
+
             if (ModelState.IsValid)
             {
                 _context.Add(course);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["CategoryId"] = new SelectList(_context.Categories, "Id", "Description", course.CategoryId);
+            PopulateCourseDropdowns(course);
             return View(course);
         }
 
@@ -89,7 +94,7 @@ namespace TrainingHub.Mvc.Controllers
             {
                 return NotFound();
             }
-            ViewData["CategoryId"] = new SelectList(_context.Categories, "Id", "Description", course.CategoryId);
+            PopulateCourseDropdowns(course);
             return View(course);
         }
 
@@ -99,12 +104,14 @@ namespace TrainingHub.Mvc.Controllers
         [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Title,Description,DurationHours,DefaultCapacity,Fee,IsActive,CategoryId")] Course course)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Title,Description,DurationHours,DefaultCapacity,Fee,IsActive,CategoryId,PrerequisiteCourseId,RequiresProjector,RequiresLabComputer")] Course course)
         {
             if (id != course.Id)
             {
                 return NotFound();
             }
+
+            ValidateCourseRequirements(course);
 
             if (ModelState.IsValid)
             {
@@ -126,7 +133,7 @@ namespace TrainingHub.Mvc.Controllers
                 }
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["CategoryId"] = new SelectList(_context.Categories, "Id", "Description", course.CategoryId);
+            PopulateCourseDropdowns(course);
             return View(course);
         }
 
@@ -141,6 +148,7 @@ namespace TrainingHub.Mvc.Controllers
 
             var course = await _context.Courses
                 .Include(c => c.Category)
+                .Include(c => c.PrerequisiteCourse)
                 .FirstOrDefaultAsync(m => m.Id == id);
             if (course == null)
             {
@@ -187,6 +195,26 @@ namespace TrainingHub.Mvc.Controllers
         private bool CourseExists(int id)
         {
             return _context.Courses.Any(e => e.Id == id);
+        }
+
+        private void PopulateCourseDropdowns(Course? course = null)
+        {
+            ViewData["CategoryId"] = new SelectList(_context.Categories, "Id", "Description", course?.CategoryId);
+            ViewData["PrerequisiteCourseId"] = new SelectList(
+                _context.Courses
+                    .Where(existingCourse => course == null || existingCourse.Id != course.Id)
+                    .OrderBy(existingCourse => existingCourse.Title),
+                "Id",
+                "Title",
+                course?.PrerequisiteCourseId);
+        }
+
+        private void ValidateCourseRequirements(Course course)
+        {
+            if (course.PrerequisiteCourseId == course.Id && course.PrerequisiteCourseId.HasValue)
+            {
+                ModelState.AddModelError(nameof(Course.PrerequisiteCourseId), "A course cannot be its own prerequisite.");
+            }
         }
     }
 }

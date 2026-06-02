@@ -1,5 +1,6 @@
 ﻿@model IEnumerable<TrainingHub.Models.Certificate>
 
+@using TrainingHub.Security
 @{
     ViewData["Title"] = "Index";
 }
@@ -7,7 +8,11 @@
 <h1>Index</h1>
 
 <p>
-    <a asp-action="Create">Generate Certificate</a> |
+    @if (User.IsInRole(RoleNames.TrainingCoordinator))
+    {
+        <a asp-action="Create">Generate Certificate</a>
+        <span> | </span>
+    }
     <a asp-action="Lookup">Lookup Certificate</a>
 </p>
 <table class="table">
@@ -62,9 +67,14 @@
                 }
             </td>
             <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
-                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                <a asp-action="Details" asp-route-id="@item.Id">Details</a>
+                @if (User.IsInRole(RoleNames.TrainingCoordinator))
+                {
+                    <span> | </span>
+                    <a asp-action="Edit" asp-route-id="@item.Id">Edit</a>
+                    <span> | </span>
+                    <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                }
             </td>
         </tr>
 }

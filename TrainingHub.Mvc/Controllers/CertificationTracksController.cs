@@ -7,7 +7,7 @@ using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
-    [Authorize(Roles = RoleNames.TrainingCoordinator)]
+    [Authorize]
     public class CertificationTracksController : Controller
     {
         private readonly TrainingHubDbContext _context;
@@ -17,11 +17,25 @@ namespace TrainingHub.Mvc.Controllers
             _context = context;
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Trainee)]
         public async Task<IActionResult> Index()
         {
-            return View(await _context.CertificationTracks.ToListAsync());
+            var tracks = _context.CertificationTracks.AsQueryable();
+
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                tracks = tracks.Where(track => track.IsActive);
+                var currentEmail = User.Identity?.Name;
+                ViewBag.CurrentTraineeId = await _context.Trainees
+                    .Where(trainee => trainee.Email == currentEmail)
+                    .Select(trainee => (int?)trainee.Id)
+                    .FirstOrDefaultAsync();
+            }
+
+            return View(await tracks.ToListAsync());
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Trainee)]
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -35,14 +49,30 @@ namespace TrainingHub.Mvc.Controllers
             if (certificationTrack == null)
                 return NotFound();
 
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                if (!certificationTrack.IsActive)
+                {
+                    return Forbid();
+                }
+
+                var currentEmail = User.Identity?.Name;
+                ViewBag.CurrentTraineeId = await _context.Trainees
+                    .Where(trainee => trainee.Email == currentEmail)
+                    .Select(trainee => (int?)trainee.Id)
+                    .FirstOrDefaultAsync();
+            }
+
             return View(certificationTrack);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public IActionResult Create()
         {
             return View();
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,Name,Description,IsActive")] CertificationTrack certificationTrack)
@@ -57,6 +87,7 @@ namespace TrainingHub.Mvc.Controllers
             return View(certificationTrack);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -70,6 +101,7 @@ namespace TrainingHub.Mvc.Controllers
             return View(certificationTrack);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,Name,Description,IsActive")] CertificationTrack certificationTrack)
@@ -98,6 +130,7 @@ namespace TrainingHub.Mvc.Controllers
             return View(certificationTrack);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -112,6 +145,7 @@ namespace TrainingHub.Mvc.Controllers
             return View(certificationTrack);
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -143,11 +177,27 @@ namespace TrainingHub.Mvc.Controllers
             }
         }
 
+        [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Trainee)]
         public async Task<IActionResult> Progress(int? traineeId, int? trackId)
         {
-            if (traineeId == null || trackId == null)
+            if (trackId == null)
             {
-                ViewBag.ErrorMessage = "Trainee ID and Track ID are required.";
+                ViewBag.ErrorMessage = "Track ID is required.";
+                return View();
+            }
+
+            if (User.IsInRole(RoleNames.Trainee) && !User.IsInRole(RoleNames.TrainingCoordinator))
+            {
+                var currentEmail = User.Identity?.Name;
+                traineeId = await _context.Trainees
+                    .Where(trainee => trainee.Email == currentEmail)
+                    .Select(trainee => (int?)trainee.Id)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (traineeId == null)
+            {
+                ViewBag.ErrorMessage = "Trainee ID is required.";
                 return View();
             }
 
