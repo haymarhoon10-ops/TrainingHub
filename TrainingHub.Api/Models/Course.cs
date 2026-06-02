@@ -31,6 +31,8 @@ namespace TrainingHub.Models
         public Category? Category { get; set; }
 
         public int? PrerequisiteCourseId { get; set; }
+        public bool RequiresProjector { get; set; }
+        public bool RequiresLabComputer { get; set; }
 
         public Course? PrerequisiteCourse { get; set; }
 

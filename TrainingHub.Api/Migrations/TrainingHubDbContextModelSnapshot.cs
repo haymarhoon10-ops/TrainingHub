@@ -400,6 +400,12 @@ namespace TrainingHub.Api.Migrations
                     b.Property<int?>("PrerequisiteCourseId")
                         .HasColumnType("int");
 
+                    b.Property<bool>("RequiresLabComputer")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresProjector")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
