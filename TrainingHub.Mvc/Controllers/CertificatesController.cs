@@ -134,7 +134,7 @@ namespace TrainingHub.Mvc.Controllers
         [Authorize(Roles = RoleNames.TrainingCoordinator)]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,TraineeId,CertificationTrackId,CertificateReferenceNumber,IssuedAt,Status")] Certificate certificate)
+        public async Task<IActionResult> Create([Bind("TraineeId,CertificationTrackId")] Certificate certificate)
         {
             if (certificate.TraineeId == 0 || certificate.CertificationTrackId == 0)
             {
