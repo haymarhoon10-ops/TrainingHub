@@ -20,9 +20,20 @@ builder.Services.AddControllersWithViews()
             manager.ApplicationParts.Remove(apiPart);
         }
     });
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"];
+if (string.IsNullOrWhiteSpace(apiBaseUrl))
+{
+    throw new InvalidOperationException("MVC API base URL is not configured. Set ApiBaseUrl in configuration.");
+}
+
+if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var apiBaseUri))
+{
+    throw new InvalidOperationException("MVC API base URL is invalid. Set ApiBaseUrl to a valid absolute URL.");
+}
+
 builder.Services.AddHttpClient("TrainingHubApi", client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5079/");
+    client.BaseAddress = apiBaseUri;
 });
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
