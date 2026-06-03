@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
 using TrainingHub.Mvc.Hubs;
-using TrainingHub.Mvc.Realtime;
+using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Services;
 
@@ -134,7 +134,7 @@ public class SignalRRealtimeNotifier : IRealtimeNotifier
             .AsNoTracking()
             .CountAsync(
                 enrollment => enrollment.CourseSessionId == courseSessionId &&
-                    enrollment.Status != EnrollmentCapacityRules.DroppedStatus,
+                    EnrollmentCapacityRules.CountsTowardCapacity(enrollment.Status),
                 cancellationToken);
 
         return new EnrollmentCounterUpdate

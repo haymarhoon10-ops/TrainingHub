@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Security;
 
 namespace TrainingHub.Api.Controllers
 {
@@ -64,11 +65,18 @@ namespace TrainingHub.Api.Controllers
                 return NotFound();
             }
 
-            // If the current user is a Trainee, allow access only to their own enrollments
-            if (User.IsInRole("Trainee"))
+            if (User.IsInRole(RoleNames.Trainee))
             {
                 var userEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
                 if (!string.Equals(userEmail, enrollment.Trainee?.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+            }
+            else if (User.IsInRole(RoleNames.Instructor))
+            {
+                var currentInstructor = await GetCurrentInstructorAsync();
+                if (currentInstructor == null || enrollment.CourseSession == null || currentInstructor.Id != enrollment.CourseSession.InstructorId)
                 {
                     return Forbid();
                 }
@@ -131,16 +139,39 @@ namespace TrainingHub.Api.Controllers
         [Authorize(Roles = "TrainingCoordinator,Instructor")]
         public async Task<IActionResult> Update(int id, [FromBody] Enrollment request)
         {
-            var enrollment = await _dbContext.Enrollments.FirstOrDefaultAsync(entity => entity.Id == id);
+            var enrollment = await _dbContext.Enrollments
+                .Include(e => e.CourseSession)
+                .FirstOrDefaultAsync(entity => entity.Id == id);
 
             if (enrollment == null)
             {
                 return NotFound();
             }
 
+            Instructor? currentInstructor = null;
+            if (User.IsInRole(RoleNames.Instructor))
+            {
+                currentInstructor = await GetCurrentInstructorAsync();
+                if (currentInstructor == null || enrollment.CourseSession == null || currentInstructor.Id != enrollment.CourseSession.InstructorId)
+                {
+                    return Forbid();
+                }
+            }
+
             if (!await ReferencesExistAsync(request.TraineeId, request.CourseSessionId))
             {
                 return BadRequest(new { message = "The specified trainee or course session does not exist." });
+            }
+
+            if (currentInstructor != null)
+            {
+                var canAccessTargetSession = await _dbContext.CourseSessions
+                    .AnyAsync(cs => cs.Id == request.CourseSessionId && cs.InstructorId == currentInstructor.Id);
+
+                if (!canAccessTargetSession)
+                {
+                    return Forbid();
+                }
             }
 
             ValidateEnrollmentLifecycleValues(request);
@@ -168,7 +199,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpDelete("{id:int}")]
-        [Authorize(Roles = "TrainingCoordinator,Instructor")]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Delete(int id)
         {
             var enrollment = await _dbContext.Enrollments.FirstOrDefaultAsync(entity => entity.Id == id);
@@ -212,6 +243,17 @@ namespace TrainingHub.Api.Controllers
             return await _dbContext.Trainees.FirstOrDefaultAsync(t => t.Email == userEmail);
         }
 
+        private async Task<Instructor?> GetCurrentInstructorAsync()
+        {
+            var userEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                return null;
+            }
+
+            return await _dbContext.Instructors.FirstOrDefaultAsync(i => i.Email == userEmail);
+        }
+
         private void ValidateEnrollmentLifecycleValues(Enrollment enrollment)
         {
             if (!AllowedEnrollmentStatuses.Contains(enrollment.Status))
@@ -251,7 +293,10 @@ namespace TrainingHub.Api.Controllers
                 return;
             }
 
-            if (session.Enrollments.Count(e => e.Id != enrollment.Id) >= session.Capacity)
+            if (session.Enrollments.Count(e =>
+                    e.Id != enrollment.Id &&
+                    EnrollmentCapacityRules.CountsTowardCapacity(e.Status)) >= session.Capacity &&
+                EnrollmentCapacityRules.CountsTowardCapacity(enrollment.Status))
             {
                 ModelState.AddModelError("", "This session is already full.");
             }

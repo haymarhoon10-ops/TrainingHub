@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
-using TrainingHub.Mvc.Realtime;
 using TrainingHub.Mvc.Services;
 using TrainingHub.Security;
 
