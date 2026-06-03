@@ -13,10 +13,15 @@ if (string.IsNullOrWhiteSpace(apiBaseUrl))
     throw new InvalidOperationException("Reporting API base URL is not configured. Set ApiSettings:BaseUrl in configuration.");
 }
 
+if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var apiBaseUri))
+{
+    throw new InvalidOperationException("Reporting API base URL is invalid. Set ApiSettings:BaseUrl to a valid absolute URL.");
+}
+
 // Setup HttpClient to talk to your Web API
 builder.Services.AddHttpClient("TrainingHubApi", client =>
 {
-    client.BaseAddress = new Uri(apiBaseUrl);
+    client.BaseAddress = apiBaseUri;
 }).AddHttpMessageHandler<TokenHandler>();
 
 // Setup Cookie Authentication

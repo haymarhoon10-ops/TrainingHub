@@ -15,52 +15,67 @@ namespace TrainingHub.Reporting.Services
             _httpContextAccessor = httpContextAccessor;
         }
 
-        public async Task<List<EnrollmentStatDto>> GetEnrollmentStatsAsync()
+        private HttpClient CreateApiClient()
         {
-            // 1. Get the pre-configured HTTP client ("ApiClient" from Program.cs)
             var client = _httpClientFactory.CreateClient("TrainingHubApi");
-
-            // 2. Reach into the user's current session to find their JWT "wristband"
             var token = _httpContextAccessor.HttpContext?.User?.FindFirst("jwt")?.Value;
 
-            // 3. Attach the token to the request's Authorization header
             if (!string.IsNullOrWhiteSpace(token))
             {
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             }
 
-            var response = await client.GetAsync("api/Reports/enrollments");
+            return client;
+        }
 
-            if (response.IsSuccessStatusCode)
+        public async Task<List<EnrollmentStatDto>> GetEnrollmentStatsAsync()
+        {
+            try
             {
-                var jsonString = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<List<EnrollmentStatDto>>(jsonString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<EnrollmentStatDto>();
+                var client = CreateApiClient();
+                var response = await client.GetAsync("api/Reports/enrollments");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var jsonString = await response.Content.ReadAsStringAsync();
+                    return JsonSerializer.Deserialize<List<EnrollmentStatDto>>(jsonString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<EnrollmentStatDto>();
+                }
+            }
+            catch (HttpRequestException)
+            {
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (JsonException)
+            {
             }
 
-            // If it fails (e.g., unauthorized or server error), return an empty list
             return new List<EnrollmentStatDto>();
         }
 
         public async Task<List<InstructorWorkloadDto>> GetInstructorWorkloadAsync()
         {
-            var client = _httpClientFactory.CreateClient("TrainingHubApi");
-
-            // Use the same claim name the AccountController stores ("jwt")
-            var token = _httpContextAccessor.HttpContext?.User?.FindFirst("jwt")?.Value;
-
-            if (!string.IsNullOrWhiteSpace(token))
+            try
             {
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                var client = CreateApiClient();
+                var response = await client.GetAsync("api/Reports/instructors");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var jsonString = await response.Content.ReadAsStringAsync();
+                    return JsonSerializer.Deserialize<List<InstructorWorkloadDto>>(jsonString,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<InstructorWorkloadDto>();
+                }
             }
-
-            // Call the specific endpoint for the workload data
-            var response = await client.GetAsync("api/Reports/instructors");
-
-            if (response.IsSuccessStatusCode)
+            catch (HttpRequestException)
             {
-                var jsonString = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<List<InstructorWorkloadDto>>(jsonString,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<InstructorWorkloadDto>();
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (JsonException)
+            {
             }
 
             return new List<InstructorWorkloadDto>();
@@ -68,39 +83,52 @@ namespace TrainingHub.Reporting.Services
 
         public async Task<List<InstructorWorkloadDto>> GetInstructorsAsync()
         {
-            var client = _httpClientFactory.CreateClient("TrainingHubApi");
-
-            var token = _httpContextAccessor.HttpContext?.User?.FindFirst("jwt")?.Value;
-            if (!string.IsNullOrWhiteSpace(token))
+            try
             {
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                var client = CreateApiClient();
+                var response = await client.GetAsync("api/Reports/instructors");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    return JsonSerializer.Deserialize<List<InstructorWorkloadDto>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<InstructorWorkloadDto>();
+                }
+            }
+            catch (HttpRequestException)
+            {
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (JsonException)
+            {
             }
 
-            var response = await client.GetAsync("api/Reports/instructors");
-            response.EnsureSuccessStatusCode();
-
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<List<InstructorWorkloadDto>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<InstructorWorkloadDto>();
+            return new List<InstructorWorkloadDto>();
         }
 
         public async Task<List<RevenueReportDto>> GetRevenueAsync()
         {
-            var client = _httpClientFactory.CreateClient("TrainingHubApi");
-
-            // Grab the JWT from the context (You already wrote this logic!)
-            var token = _httpContextAccessor.HttpContext?.User.FindFirst("jwt")?.Value;
-            if (!string.IsNullOrEmpty(token))
+            try
             {
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                var client = CreateApiClient();
+                var response = await client.GetAsync("api/reports/revenue");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    return JsonSerializer.Deserialize<List<RevenueReportDto>>(content,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<RevenueReportDto>();
+                }
             }
-
-            var response = await client.GetAsync("api/reports/revenue");
-
-            if (response.IsSuccessStatusCode)
+            catch (HttpRequestException)
             {
-                var content = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<List<RevenueReportDto>>(content,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<RevenueReportDto>();
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (JsonException)
+            {
             }
 
             return new List<RevenueReportDto>();

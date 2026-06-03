@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using System.Net.Http;
 // We need this using statement to slice open the JWT
 using System.IdentityModel.Tokens.Jwt;
 using TrainingHub.Reporting.Models;
@@ -36,42 +37,69 @@ namespace TrainingHub.Reporting.Controllers
                 return View(model);
             }
 
-            var client = _httpClientFactory.CreateClient("TrainingHubApi");
-            var loginData = new { email = model.Email, password = model.Password };
-            var content = new StringContent(JsonSerializer.Serialize(loginData), Encoding.UTF8, "application/json");
-
-            var response = await client.PostAsync("api/auth/login", content);
-
-            if (response.IsSuccessStatusCode)
+            try
             {
-                var jsonString = await response.Content.ReadAsStringAsync();
-                using var jsonDoc = JsonDocument.Parse(jsonString);
-                var token = jsonDoc.RootElement.GetProperty("accessToken").GetString();
+                var client = _httpClientFactory.CreateClient("TrainingHubApi");
+                var loginData = new { email = model.Email, password = model.Password };
+                var content = new StringContent(JsonSerializer.Serialize(loginData), Encoding.UTF8, "application/json");
 
-                // 1. Slice open the JWT to read the data inside
-                var handler = new JwtSecurityTokenHandler();
-                var jwtToken = handler.ReadJwtToken(token);
+                var response = await client.PostAsync("api/auth/login", content);
 
-                // 2. Automatically copy EVERY claim (including the Role!) from the JWT
-                var claims = new List<Claim>(jwtToken.Claims);
+                if (response.IsSuccessStatusCode)
+                {
+                    var jsonString = await response.Content.ReadAsStringAsync();
+                    using var jsonDoc = JsonDocument.Parse(jsonString);
 
-                // 3. Keep our raw string attached so ReportService can send it to the API later
-                claims.Add(new Claim("jwt", token ?? string.Empty));
+                    if (!jsonDoc.RootElement.TryGetProperty("accessToken", out var tokenProperty))
+                    {
+                        ModelState.AddModelError(string.Empty, "Login succeeded but the API response did not contain an access token.");
+                        return View(model);
+                    }
 
-                // 4. Create the Identity, explicitly telling ASP.NET to look here for Roles
-                var identity = new ClaimsIdentity(claims, "ReportingCookie",
-                    ClaimTypes.Name,
-                    ClaimTypes.Role);
+                    var token = tokenProperty.GetString();
+                    if (string.IsNullOrWhiteSpace(token))
+                    {
+                        ModelState.AddModelError(string.Empty, "Login succeeded but the API returned an empty access token.");
+                        return View(model);
+                    }
 
-                var principal = new ClaimsPrincipal(identity);
+                    var handler = new JwtSecurityTokenHandler();
+                    var jwtToken = handler.ReadJwtToken(token);
 
-                await HttpContext.SignInAsync("ReportingCookie", principal);
+                    var claims = new List<Claim>(jwtToken.Claims)
+                    {
+                        new Claim("jwt", token)
+                    };
 
-                return LocalRedirect(model.ReturnUrl ?? Url.Action("Index", "Home")!);
+                    var identity = new ClaimsIdentity(claims, "ReportingCookie",
+                        ClaimTypes.Name,
+                        ClaimTypes.Role);
+
+                    var principal = new ClaimsPrincipal(identity);
+
+                    await HttpContext.SignInAsync("ReportingCookie", principal);
+
+                    return LocalRedirect(model.ReturnUrl ?? Url.Action("Index", "Home")!);
+                }
+
+                ModelState.AddModelError(string.Empty, "Invalid login attempt.");
+                return View(model);
             }
-
-            ModelState.AddModelError(string.Empty, "Invalid login attempt.");
-            return View(model);
+            catch (HttpRequestException)
+            {
+                ModelState.AddModelError(string.Empty, "The Reporting application could not reach the API. Check the configured API base URL and ensure the API is running.");
+                return View(model);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "The login request to the API timed out. Try again in a moment.");
+                return View(model);
+            }
+            catch (JsonException)
+            {
+                ModelState.AddModelError(string.Empty, "The API returned an unexpected response during login.");
+                return View(model);
+            }
         }
 
         [HttpPost]
