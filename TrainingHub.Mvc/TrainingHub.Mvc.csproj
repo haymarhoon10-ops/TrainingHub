@@ -17,7 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TrainingHub.Api\TrainingHub.Api.csproj" />
+    <ProjectReference Include="..\TrainingHub.Api\TrainingHub.Api.csproj">
+      <AdditionalProperties>ExcludeConfigFilesFromPublish=true</AdditionalProperties>
+    </ProjectReference>
   </ItemGroup>
 
 </Project>
