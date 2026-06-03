@@ -1,17 +1,3 @@
-/*
-    TrainingHub database schema
-
-    Purpose:
-    - Creates the ASP.NET Core Identity tables used for authentication/roles.
-    - Creates the TrainingHub domain tables, primary keys, foreign keys, and indexes.
-    - Records EF Core migration history so a database created from this script is
-      aligned with the current application migrations.
-
-    Notes:
-    - This script is idempotent for table and index creation.
-    - It does not insert seed data. Run SeedData.sql separately for sample data.
-*/
-
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
