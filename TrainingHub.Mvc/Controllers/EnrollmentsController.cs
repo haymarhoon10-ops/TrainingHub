@@ -245,30 +245,64 @@ namespace TrainingHub.Mvc.Controllers
 
             ValidateEnrollmentLifecycleValues(enrollment);
             await ValidateEnrollmentRules(enrollment);
+
             var existingEnrollment = await _context.Enrollments
-                .AsNoTracking()
-                .Where(e => e.Id == id)
-                .Select(e => new { e.CourseSessionId })
-                .FirstOrDefaultAsync();
+                .Include(e => e.CourseSession)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            if (existingEnrollment == null)
+                return NotFound();
 
             if (ModelState.IsValid)
             {
+                var previousCourseSessionId = existingEnrollment.CourseSessionId;
+
+                existingEnrollment.Status = enrollment.Status;
+                existingEnrollment.AttendanceStatus = enrollment.AttendanceStatus;
+                existingEnrollment.ResultStatus = enrollment.ResultStatus;
+                existingEnrollment.ResultRecordedAt = string.Equals(enrollment.ResultStatus, "Pending", StringComparison.Ordinal)
+                    ? null
+                    : enrollment.ResultRecordedAt ?? DateTime.UtcNow;
+
+                if (User.IsInRole(RoleNames.TrainingCoordinator))
+                {
+                    existingEnrollment.TraineeId = enrollment.TraineeId;
+                    if (existingEnrollment.CourseSessionId != enrollment.CourseSessionId)
+                    {
+                        existingEnrollment.CourseSessionId = enrollment.CourseSessionId;
+                        existingEnrollment.CourseSession = null;
+                    }
+                }
+
+                if (!string.Equals(existingEnrollment.Status, "Dropped", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(existingEnrollment.ResultStatus, "Pending", StringComparison.Ordinal))
+                {
+                    existingEnrollment.Status = "Completed";
+                }
+
+                ValidateEnrollmentLifecycleValues(existingEnrollment);
+
+                if (!ModelState.IsValid)
+                {
+                    PopulateDropdowns(existingEnrollment);
+                    return View(existingEnrollment);
+                }
+
                 try
                 {
-                    _context.Update(enrollment);
                     await _context.SaveChangesAsync();
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!EnrollmentExists(enrollment.Id))
+                    if (!EnrollmentExists(existingEnrollment.Id))
                         return NotFound();
                     else
                         throw;
                 }
 
                 await _realtimeNotifier.PublishEnrollmentUpdatedAsync(
-                    enrollment,
-                    existingEnrollment?.CourseSessionId,
+                    existingEnrollment,
+                    previousCourseSessionId,
                     HttpContext.RequestAborted);
                 return RedirectToAction(nameof(Index));
             }
