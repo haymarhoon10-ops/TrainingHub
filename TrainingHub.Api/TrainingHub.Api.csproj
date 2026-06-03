@@ -26,4 +26,9 @@
     <EmbeddedResource Include="Database\SeedData.sql" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(ExcludeConfigFilesFromPublish)' == 'true'">
+    <Content Update="appsettings.json" CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
 </Project>
