@@ -53,6 +53,24 @@
         <dd class = "col-sm-10">
             @Html.DisplayFor(model => model.Category.Description)
         </dd>
+        <dt class = "col-sm-2">
+            Prerequisite Course
+        </dt>
+        <dd class = "col-sm-10">
+            @(Model.PrerequisiteCourse?.Title ?? "None")
+        </dd>
+        <dt class = "col-sm-2">
+            Requires Projector
+        </dt>
+        <dd class = "col-sm-10">
+            @Html.DisplayFor(model => model.RequiresProjector)
+        </dd>
+        <dt class = "col-sm-2">
+            Requires Lab Computer
+        </dt>
+        <dd class = "col-sm-10">
+            @Html.DisplayFor(model => model.RequiresLabComputer)
+        </dd>
     </dl>
     
     <form asp-action="Delete">

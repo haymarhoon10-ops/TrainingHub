@@ -46,6 +46,15 @@
     </dl>
 </div>
 <div>
-    <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a> |
+    @if (User.IsInRole(RoleNames.TrainingCoordinator))
+    {
+        <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a>
+        <span> | </span>
+    }
+    @if (User.IsInRole(RoleNames.Trainee) && ViewBag.CurrentTraineeId != null)
+    {
+        <a asp-action="Progress" asp-route-traineeId="@ViewBag.CurrentTraineeId" asp-route-trackId="@Model?.Id">View My Progress</a>
+        <span> | </span>
+    }
     <a asp-action="Index">Back to List</a>
 </div>

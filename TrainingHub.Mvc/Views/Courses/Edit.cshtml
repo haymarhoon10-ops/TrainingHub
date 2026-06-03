@@ -49,6 +49,23 @@
                 <span asp-validation-for="CategoryId" class="text-danger"></span>
             </div>
             <div class="form-group">
+                <label asp-for="PrerequisiteCourseId" class="control-label"></label>
+                <select asp-for="PrerequisiteCourseId" class="form-control" asp-items="ViewBag.PrerequisiteCourseId">
+                    <option value="">No prerequisite</option>
+                </select>
+                <span asp-validation-for="PrerequisiteCourseId" class="text-danger"></span>
+            </div>
+            <div class="form-group form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" asp-for="RequiresProjector" /> @Html.DisplayNameFor(model => model.RequiresProjector)
+                </label>
+            </div>
+            <div class="form-group form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" asp-for="RequiresLabComputer" /> @Html.DisplayNameFor(model => model.RequiresLabComputer)
+                </label>
+            </div>
+            <div class="form-group">
                 <input type="submit" value="Save" class="btn btn-primary" />
             </div>
         </form>

@@ -1,7 +1,35 @@
+using TrainingHub.Reporting.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<TokenHandler>();
+
+var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"];
+if (string.IsNullOrWhiteSpace(apiBaseUrl))
+{
+    throw new InvalidOperationException("Reporting API base URL is not configured. Set ApiSettings:BaseUrl in configuration.");
+}
+
+// Setup HttpClient to talk to your Web API
+builder.Services.AddHttpClient("TrainingHubApi", client =>
+{
+    client.BaseAddress = new Uri(apiBaseUrl);
+}).AddHttpMessageHandler<TokenHandler>();
+
+// Setup Cookie Authentication
+builder.Services.AddAuthentication("ReportingCookie")
+    .AddCookie("ReportingCookie", options =>
+    {
+        options.Cookie.Name = "TrainingHub.Reporting.Auth";
+        options.LoginPath = "/Account/Login"; // Where to send users who aren't logged in
+        options.AccessDeniedPath = "/Account/AccessDenied"; // Where to send users with the wrong role
+    });
+
+// Registers the ReportService so we can inject it into our Controllers
+builder.Services.AddScoped<ReportService>();
 
 var app = builder.Build();
 
@@ -16,6 +44,8 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseRouting();
 
+app.UseAuthentication();
+
 app.UseAuthorization();
 
 app.MapStaticAssets();
@@ -24,6 +54,5 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}")
     .WithStaticAssets();
-
 
 app.Run();

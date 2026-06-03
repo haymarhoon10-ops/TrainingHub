@@ -43,6 +43,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Create([FromBody] CourseSession request)
         {
             if (!await ReferencesExistAsync(request.CourseId, request.InstructorId, request.ClassroomId))
@@ -50,9 +51,11 @@ namespace TrainingHub.Api.Controllers
                 return BadRequest(new { message = "One or more related records do not exist." });
             }
 
-            if (request.EndDate < request.StartDate)
+            await ValidateCourseSessionRules(request);
+
+            if (!ModelState.IsValid)
             {
-                return BadRequest(new { message = "EndDate must be greater than or equal to StartDate." });
+                return BadRequest(ModelState);
             }
 
             var courseSession = new CourseSession
@@ -76,6 +79,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Update(int id, [FromBody] CourseSession request)
         {
             var courseSession = await _dbContext.CourseSessions.FirstOrDefaultAsync(entity => entity.Id == id);
@@ -90,9 +94,12 @@ namespace TrainingHub.Api.Controllers
                 return BadRequest(new { message = "One or more related records do not exist." });
             }
 
-            if (request.EndDate < request.StartDate)
+            request.Id = id;
+            await ValidateCourseSessionRules(request);
+
+            if (!ModelState.IsValid)
             {
-                return BadRequest(new { message = "EndDate must be greater than or equal to StartDate." });
+                return BadRequest(ModelState);
             }
 
             courseSession.CourseId = request.CourseId;
@@ -112,6 +119,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Delete(int id)
         {
             var courseSession = await _dbContext.CourseSessions.FirstOrDefaultAsync(entity => entity.Id == id);
@@ -143,6 +151,42 @@ namespace TrainingHub.Api.Controllers
             var classroomExists = await _dbContext.Classrooms.AnyAsync(classroom => classroom.Id == classroomId);
 
             return courseExists && instructorExists && classroomExists;
+        }
+
+        private async Task ValidateCourseSessionRules(CourseSession courseSession)
+        {
+            if (courseSession.EndDate <= courseSession.StartDate)
+            {
+                ModelState.AddModelError("EndDate", "EndDate must be greater than StartDate.");
+            }
+
+            var classroom = await _dbContext.Classrooms.FirstOrDefaultAsync(c => c.Id == courseSession.ClassroomId);
+            if (classroom != null && courseSession.Capacity > classroom.Capacity)
+            {
+                ModelState.AddModelError("Capacity", $"Session capacity cannot exceed classroom capacity ({classroom.Capacity}).");
+            }
+
+            var instructorConflict = await _dbContext.CourseSessions.AnyAsync(cs =>
+                cs.Id != courseSession.Id &&
+                cs.InstructorId == courseSession.InstructorId &&
+                cs.StartDate < courseSession.EndDate &&
+                courseSession.StartDate < cs.EndDate);
+
+            if (instructorConflict)
+            {
+                ModelState.AddModelError("InstructorId", "This instructor already has another session during this time.");
+            }
+
+            var classroomConflict = await _dbContext.CourseSessions.AnyAsync(cs =>
+                cs.Id != courseSession.Id &&
+                cs.ClassroomId == courseSession.ClassroomId &&
+                cs.StartDate < courseSession.EndDate &&
+                courseSession.StartDate < cs.EndDate);
+
+            if (classroomConflict)
+            {
+                ModelState.AddModelError("ClassroomId", "This classroom is already booked during this time.");
+            }
         }
 
         private static object BuildCourseSessionResponse(CourseSession courseSession)

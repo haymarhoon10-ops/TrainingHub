@@ -1,5 +1,6 @@
 ﻿@model TrainingHub.Models.Enrollment
 
+@using TrainingHub.Security
 @{
     ViewData["Title"] = "Details";
 }
@@ -55,6 +56,10 @@
     </dl>
 </div>
 <div>
-    <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a> |
+    @if (User.IsInRole(RoleNames.TrainingCoordinator) || User.IsInRole(RoleNames.Instructor))
+    {
+        <a asp-action="Edit" asp-route-id="@Model?.Id">@(User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator) ? "Record Result" : "Edit")</a>
+        <span> | </span>
+    }
     <a asp-action="Index">Back to List</a>
 </div>

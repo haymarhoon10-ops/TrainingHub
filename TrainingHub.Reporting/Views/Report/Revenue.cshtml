@@ -1,0 +1,76 @@
+﻿@model IEnumerable<TrainingHub.Reporting.Models.RevenueReportDto>
+
+@{
+    var revenueRows = Model?.ToList() ?? new List<TrainingHub.Reporting.Models.RevenueReportDto>();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Revenue & Outstanding Balances</h2>
+    <a href="@Url.Action("Index", "Home")" class="btn btn-outline-secondary">Back to Dashboard</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="ps-4 py-3">Course Name</th>
+                        <th class="py-3">Expected Revenue</th>
+                        <th class="py-3">Total Collected</th>
+                        <th class="py-3">Total Outstanding</th>
+                        <th class="py-3 pe-4">Payment Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!revenueRows.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">No revenue data available for this period.</td>
+                        </tr>
+                    }
+                    @foreach (var item in revenueRows)
+                    {
+                        <tr>
+                            <td class="ps-4 fw-bold">@item.CourseName</td>
+
+                            <td>@item.TotalExpectedRevenue.ToString("C")</td>
+
+                            <td class="text-success fw-semibold">
+                                @item.TotalCollected.ToString("C")
+                            </td>
+
+                            <td class="text-danger fw-semibold">
+                                @item.TotalOutstanding.ToString("C")
+                            </td>
+
+                            <td class="pe-4">
+                                @if (item.TotalOutstanding == 0)
+                                {
+                                    <span class="badge bg-success rounded-pill px-3">Fully Paid</span>
+                                }
+                                else if (item.TotalCollected == 0)
+                                {
+                                    <span class="badge bg-danger rounded-pill px-3">Unpaid</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark rounded-pill px-3">Partial</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-light fw-bold border-top">
+                    <tr>
+                        <td class="ps-4 text-end">Grand Totals:</td>
+                        <td>@revenueRows.Sum(x => x.TotalExpectedRevenue).ToString("C")</td>
+                        <td class="text-success">@revenueRows.Sum(x => x.TotalCollected).ToString("C")</td>
+                        <td class="text-danger">@revenueRows.Sum(x => x.TotalOutstanding).ToString("C")</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>

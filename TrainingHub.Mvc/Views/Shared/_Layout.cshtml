@@ -1,4 +1,5 @@
 ﻿@using Microsoft.EntityFrameworkCore
+@using TrainingHub.Mvc.Hubs
 @inject SignInManager<ApplicationUser> SignInManager
 <!DOCTYPE html>
 <html lang="en">
@@ -14,7 +15,7 @@
     <link rel="stylesheet" href="~/TrainingHub.Mvc.styles.css" asp-append-version="true" />
 </head>
 
-<body>
+<body data-enrollment-hub-url="@EnrollmentRealtimeHub.HubRoute">
 
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
@@ -114,12 +115,24 @@
                                 <li class="nav-item">
                                     <a class="nav-link text-dark" asp-controller="CourseSessions" asp-action="Index">Sessions</a>
                                 </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Notifications" asp-action="Index">Notifications</a>
+                                </li>
                             }
 
                             @if (isTrainee)
                             {
                                 <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="CourseSessions" asp-action="Index">Sessions</a>
+                                </li>
+
+                                <li class="nav-item">
                                     <a class="nav-link text-dark" asp-controller="Enrollments" asp-action="Index">Enrollments</a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="CertificationTracks" asp-action="Index">Certification Progress</a>
                                 </li>
 
                                 <li class="nav-item">
@@ -128,6 +141,10 @@
 
                                 <li class="nav-item">
                                     <a class="nav-link text-dark" asp-controller="Payments" asp-action="Index">Payments</a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-controller="Notifications" asp-action="Index">Notifications</a>
                                 </li>
                             }
 
@@ -184,6 +201,7 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/microsoft-signalr/signalr.min.js"></script>
 
     <script src="~/js/site.js" asp-append-version="true"></script>
 

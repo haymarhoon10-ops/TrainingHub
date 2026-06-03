@@ -1,0 +1,33 @@
+﻿@{
+    ViewData["Title"] = "Access Denied";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+
+            <h1 class="text-danger display-1 fw-bold mb-3">403</h1>
+            <h2 class="mb-3">Access Restricted</h2>
+
+            <p class="lead text-muted mb-4">
+                You do not have the required permissions to view this dashboard.
+                This area is restricted to the Training Coordinator role.
+            </p>
+
+            <hr class="mb-4" />
+
+            <p class="mb-4">
+                If you believe you should have access, please contact the system administrator to update your account privileges.
+            </p>
+
+            <a asp-controller="Home" asp-action="Index" class="btn btn-outline-primary">
+                Return to Home
+            </a>
+            <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline ms-2">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-primary">Sign In as Different User</button>
+            </form>
+
+        </div>
+    </div>
+</div>

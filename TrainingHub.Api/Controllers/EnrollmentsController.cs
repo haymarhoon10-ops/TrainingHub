@@ -1,8 +1,10 @@
+using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Security;
 
 namespace TrainingHub.Api.Controllers
 {
@@ -11,6 +13,29 @@ namespace TrainingHub.Api.Controllers
     [Route("api/enrollments")]
     public class EnrollmentsController : ControllerBase
     {
+        private static readonly HashSet<string> AllowedEnrollmentStatuses = new(StringComparer.Ordinal)
+        {
+            "Enrolled",
+            "Confirmed",
+            "Attending",
+            "Completed",
+            "Dropped"
+        };
+
+        private static readonly HashSet<string> AllowedAttendanceStatuses = new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "Present",
+            "Absent"
+        };
+
+        private static readonly HashSet<string> AllowedResultStatuses = new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "Pass",
+            "Fail"
+        };
+
         private readonly TrainingHubDbContext _dbContext;
 
         public EnrollmentsController(TrainingHubDbContext dbContext)
@@ -19,6 +44,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "TrainingCoordinator,Instructor")]
         public async Task<IActionResult> GetAll()
         {
             var enrollments = await GetEnrollmentQuery()
@@ -39,15 +65,55 @@ namespace TrainingHub.Api.Controllers
                 return NotFound();
             }
 
+            if (User.IsInRole(RoleNames.Trainee))
+            {
+                var userEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+                if (!string.Equals(userEmail, enrollment.Trainee?.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+            }
+            else if (User.IsInRole(RoleNames.Instructor))
+            {
+                var currentInstructor = await GetCurrentInstructorAsync();
+                if (currentInstructor == null || enrollment.CourseSession == null || currentInstructor.Id != enrollment.CourseSession.InstructorId)
+                {
+                    return Forbid();
+                }
+            }
+
             return Ok(BuildEnrollmentResponse(enrollment));
         }
 
         [HttpPost]
+        [Authorize(Roles = "TrainingCoordinator,Instructor,Trainee")]
         public async Task<IActionResult> Create([FromBody] Enrollment request)
         {
             if (!await ReferencesExistAsync(request.TraineeId, request.CourseSessionId))
             {
                 return BadRequest(new { message = "The specified trainee or course session does not exist." });
+            }
+
+            if (User.IsInRole("Trainee"))
+            {
+                var currentTrainee = await GetCurrentTraineeAsync();
+                if (currentTrainee == null || currentTrainee.Id != request.TraineeId)
+                {
+                    return Forbid();
+                }
+
+                request.Status = "Enrolled";
+                request.AttendanceStatus = "Pending";
+                request.ResultStatus = "Pending";
+                request.ResultRecordedAt = null;
+            }
+
+            ValidateEnrollmentLifecycleValues(request);
+            await ValidateEnrollmentBusinessRulesAsync(request);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
             }
 
             var enrollment = new Enrollment
@@ -70,18 +136,51 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator,Instructor")]
         public async Task<IActionResult> Update(int id, [FromBody] Enrollment request)
         {
-            var enrollment = await _dbContext.Enrollments.FirstOrDefaultAsync(entity => entity.Id == id);
+            var enrollment = await _dbContext.Enrollments
+                .Include(e => e.CourseSession)
+                .FirstOrDefaultAsync(entity => entity.Id == id);
 
             if (enrollment == null)
             {
                 return NotFound();
             }
 
+            Instructor? currentInstructor = null;
+            if (User.IsInRole(RoleNames.Instructor))
+            {
+                currentInstructor = await GetCurrentInstructorAsync();
+                if (currentInstructor == null || enrollment.CourseSession == null || currentInstructor.Id != enrollment.CourseSession.InstructorId)
+                {
+                    return Forbid();
+                }
+            }
+
             if (!await ReferencesExistAsync(request.TraineeId, request.CourseSessionId))
             {
                 return BadRequest(new { message = "The specified trainee or course session does not exist." });
+            }
+
+            if (currentInstructor != null)
+            {
+                var canAccessTargetSession = await _dbContext.CourseSessions
+                    .AnyAsync(cs => cs.Id == request.CourseSessionId && cs.InstructorId == currentInstructor.Id);
+
+                if (!canAccessTargetSession)
+                {
+                    return Forbid();
+                }
+            }
+
+            ValidateEnrollmentLifecycleValues(request);
+            request.Id = id;
+            await ValidateEnrollmentBusinessRulesAsync(request);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
             }
 
             enrollment.TraineeId = request.TraineeId;
@@ -100,6 +199,7 @@ namespace TrainingHub.Api.Controllers
         }
 
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "TrainingCoordinator")]
         public async Task<IActionResult> Delete(int id)
         {
             var enrollment = await _dbContext.Enrollments.FirstOrDefaultAsync(entity => entity.Id == id);
@@ -130,6 +230,93 @@ namespace TrainingHub.Api.Controllers
             var courseSessionExists = await _dbContext.CourseSessions.AnyAsync(courseSession => courseSession.Id == courseSessionId);
 
             return traineeExists && courseSessionExists;
+        }
+
+        private async Task<Trainee?> GetCurrentTraineeAsync()
+        {
+            var userEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                return null;
+            }
+
+            return await _dbContext.Trainees.FirstOrDefaultAsync(t => t.Email == userEmail);
+        }
+
+        private async Task<Instructor?> GetCurrentInstructorAsync()
+        {
+            var userEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                return null;
+            }
+
+            return await _dbContext.Instructors.FirstOrDefaultAsync(i => i.Email == userEmail);
+        }
+
+        private void ValidateEnrollmentLifecycleValues(Enrollment enrollment)
+        {
+            if (!AllowedEnrollmentStatuses.Contains(enrollment.Status))
+            {
+                ModelState.AddModelError(nameof(Enrollment.Status), "Select a valid enrollment status.");
+            }
+
+            if (!AllowedAttendanceStatuses.Contains(enrollment.AttendanceStatus))
+            {
+                ModelState.AddModelError(nameof(Enrollment.AttendanceStatus), "Select a valid attendance status.");
+            }
+
+            if (!AllowedResultStatuses.Contains(enrollment.ResultStatus))
+            {
+                ModelState.AddModelError(nameof(Enrollment.ResultStatus), "Select a valid result status.");
+            }
+        }
+
+        private async Task ValidateEnrollmentBusinessRulesAsync(Enrollment enrollment)
+        {
+            if (await _dbContext.Enrollments.AnyAsync(e =>
+                e.TraineeId == enrollment.TraineeId &&
+                e.CourseSessionId == enrollment.CourseSessionId &&
+                e.Id != enrollment.Id))
+            {
+                ModelState.AddModelError("", "This trainee is already enrolled in this session.");
+            }
+
+            var session = await _dbContext.CourseSessions
+                .Include(cs => cs.Enrollments)
+                .Include(cs => cs.Course)
+                .FirstOrDefaultAsync(cs => cs.Id == enrollment.CourseSessionId);
+
+            if (session == null)
+            {
+                ModelState.AddModelError("", "Selected course session does not exist.");
+                return;
+            }
+
+            if (session.Enrollments.Count(e =>
+                    e.Id != enrollment.Id &&
+                    EnrollmentCapacityRules.CountsTowardCapacity(e.Status)) >= session.Capacity &&
+                EnrollmentCapacityRules.CountsTowardCapacity(enrollment.Status))
+            {
+                ModelState.AddModelError("", "This session is already full.");
+            }
+
+            if (session.Course?.PrerequisiteCourseId != null)
+            {
+                var prerequisiteCompleted = await _dbContext.Enrollments
+                    .Include(e => e.CourseSession)
+                    .AnyAsync(e =>
+                        e.TraineeId == enrollment.TraineeId &&
+                        e.CourseSession != null &&
+                        e.CourseSession.CourseId == session.Course.PrerequisiteCourseId &&
+                        e.Status == "Completed" &&
+                        e.ResultStatus == "Pass");
+
+                if (!prerequisiteCompleted)
+                {
+                    ModelState.AddModelError("", "Trainee has not completed the prerequisite course.");
+                }
+            }
         }
 
         private static object BuildEnrollmentResponse(Enrollment enrollment)

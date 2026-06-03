@@ -1,6 +1,13 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using TrainingHub.Data;
 using TrainingHub.Models;
 using TrainingHub.Mvc.Models;
 using TrainingHub.Security;
@@ -11,13 +18,19 @@ namespace TrainingHub.Mvc.Controllers
     {
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly TrainingHubDbContext _context;
 
         public AccountController(
             SignInManager<ApplicationUser> signInManager,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            IHttpClientFactory httpClientFactory,
+            TrainingHubDbContext context)
         {
             _signInManager = signInManager;
             _userManager = userManager;
+            _httpClientFactory = httpClientFactory;
+            _context = context;
         }
 
         [AllowAnonymous]
@@ -36,15 +49,37 @@ namespace TrainingHub.Mvc.Controllers
                 return View(model);
             }
 
-            var result = await _signInManager.PasswordSignInAsync(
-                model.Email,
-                model.Password,
-                model.RememberMe,
-                lockoutOnFailure: false);
+            // Verify the user credentials against the local Identity database
+            var user = await _userManager.FindByEmailAsync(model.Email);
 
-            if (result.Succeeded)
+            if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
             {
-                return LocalRedirect(model.ReturnUrl ?? Url.Action("Index", "Home")!);
+                // Request the JWT from the API using the configured client
+                var client = _httpClientFactory.CreateClient("TrainingHubApi");
+
+                var loginData = new { email = model.Email, password = model.Password };
+                var content = new StringContent(JsonSerializer.Serialize(loginData), Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync("api/auth/login", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    // Extract the JWT payload
+                    var jsonString = await response.Content.ReadAsStringAsync();
+                    using var jsonDoc = JsonDocument.Parse(jsonString);
+                    var token = jsonDoc.RootElement.GetProperty("accessToken").GetString();
+
+                    // Map the JWT to a secure claim for downstream service consumption
+                    var customClaims = new List<Claim>
+                    {
+                        new Claim("jwt", token ?? string.Empty)
+                    };
+
+                    // Establish the secure session cookie containing the required claims
+                    await _signInManager.SignInWithClaimsAsync(user, model.RememberMe, customClaims);
+
+                    return LocalRedirect(model.ReturnUrl ?? Url.Action("Index", "Home")!);
+                }
             }
 
             ModelState.AddModelError(string.Empty, "Invalid login attempt.");
@@ -79,9 +114,71 @@ namespace TrainingHub.Mvc.Controllers
 
             if (result.Succeeded)
             {
-                await _userManager.AddToRoleAsync(user, RoleNames.Trainee);
-                await _signInManager.SignInAsync(user, isPersistent: false);
-                return RedirectToAction(nameof(Index), "Home");
+                var trainee = await _context.Trainees.FirstOrDefaultAsync(t => t.Email == model.Email);
+                var createdTrainee = false;
+
+                if (trainee == null)
+                {
+                    trainee = new Trainee
+                    {
+                        FullName = model.FullName,
+                        Email = model.Email,
+                        RegisteredAt = DateTime.UtcNow,
+                        IsActive = true
+                    };
+
+                    _context.Trainees.Add(trainee);
+                    createdTrainee = true;
+                }
+                else
+                {
+                    trainee.FullName = model.FullName;
+                    trainee.Email = model.Email;
+                    trainee.IsActive = true;
+
+                    if (trainee.RegisteredAt == default)
+                    {
+                        trainee.RegisteredAt = DateTime.UtcNow;
+                    }
+                }
+
+                try
+                {
+                    await _context.SaveChangesAsync();
+
+                    var roleResult = await _userManager.AddToRoleAsync(user, RoleNames.Trainee);
+
+                    if (!roleResult.Succeeded)
+                    {
+                        foreach (var error in roleResult.Errors)
+                        {
+                            ModelState.AddModelError(string.Empty, error.Description);
+                        }
+
+                        if (createdTrainee)
+                        {
+                            _context.Trainees.Remove(trainee);
+                            await _context.SaveChangesAsync();
+                        }
+
+                        await _userManager.DeleteAsync(user);
+                        return View(model);
+                    }
+
+                    await _signInManager.SignInAsync(user, isPersistent: false);
+                    return RedirectToAction(nameof(Index), "Home");
+                }
+                catch
+                {
+                    if (createdTrainee)
+                    {
+                        _context.Trainees.Remove(trainee);
+                    }
+
+                    await _context.SaveChangesAsync();
+                    await _userManager.DeleteAsync(user);
+                    throw;
+                }
             }
 
             foreach (var error in result.Errors)
@@ -93,6 +190,7 @@ namespace TrainingHub.Mvc.Controllers
         }
 
         [HttpPost]
+        [Authorize]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {

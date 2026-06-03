@@ -4,18 +4,21 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Mvc.Services;
 using TrainingHub.Security;
 
 namespace TrainingHub.Mvc.Controllers
 {
-    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor)]
+    [Authorize(Roles = RoleNames.TrainingCoordinator + "," + RoleNames.Instructor + "," + RoleNames.Trainee)]
     public class CourseSessionsController : Controller
     {
         private readonly TrainingHubDbContext _context;
+        private readonly IRealtimeNotifier _realtimeNotifier;
 
-        public CourseSessionsController(TrainingHubDbContext context)
+        public CourseSessionsController(TrainingHubDbContext context, IRealtimeNotifier realtimeNotifier)
         {
             _context = context;
+            _realtimeNotifier = realtimeNotifier;
         }
 
         public async Task<IActionResult> Index()
@@ -24,7 +27,8 @@ namespace TrainingHub.Mvc.Controllers
             IQueryable<CourseSession> sessions = _context.CourseSessions
                 .Include(c => c.Course)
                 .Include(c => c.Instructor)
-                .Include(c => c.Classroom);
+                .Include(c => c.Classroom)
+                .Include(c => c.Enrollments);
 
             if (User.IsInRole(RoleNames.Instructor) && !User.IsInRole(RoleNames.TrainingCoordinator))
             {
@@ -42,6 +46,8 @@ namespace TrainingHub.Mvc.Controllers
                 .Include(c => c.Course)
                 .Include(c => c.Instructor)
                 .Include(c => c.Classroom)
+                .Include(c => c.Enrollments)
+                    .ThenInclude(enrollment => enrollment.Trainee)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
             if (courseSession == null) return NotFound();
@@ -78,6 +84,7 @@ namespace TrainingHub.Mvc.Controllers
             {
                 _context.Add(courseSession);
                 await _context.SaveChangesAsync();
+                await NotifyInstructorAboutSessionAsync(courseSession, "assigned", HttpContext.RequestAborted);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -105,6 +112,15 @@ namespace TrainingHub.Mvc.Controllers
         {
             if (id != courseSession.Id) return NotFound();
 
+            var existingSession = await _context.CourseSessions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(cs => cs.Id == id);
+
+            if (existingSession == null)
+            {
+                return NotFound();
+            }
+
             await ValidateCourseSessionRules(courseSession);
 
             if (ModelState.IsValid)
@@ -118,6 +134,11 @@ namespace TrainingHub.Mvc.Controllers
                 {
                     if (!CourseSessionExists(courseSession.Id)) return NotFound();
                     throw;
+                }
+
+                if (SessionAssignmentChanged(existingSession, courseSession))
+                {
+                    await NotifyInstructorAboutSessionAsync(courseSession, "updated", HttpContext.RequestAborted);
                 }
 
                 return RedirectToAction(nameof(Index));
@@ -176,9 +197,26 @@ namespace TrainingHub.Mvc.Controllers
             var classroom = await _context.Classrooms
                 .FirstOrDefaultAsync(c => c.Id == courseSession.ClassroomId);
 
+            var course = await _context.Courses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == courseSession.CourseId);
+
             if (classroom != null && courseSession.Capacity > classroom.Capacity)
             {
                 ModelState.AddModelError("Capacity", $"Session capacity cannot exceed classroom capacity ({classroom.Capacity}).");
+            }
+
+            if (course != null && classroom != null)
+            {
+                if (course.RequiresProjector && !classroom.HasProjector)
+                {
+                    ModelState.AddModelError("ClassroomId", "This course requires a projector, but the selected classroom does not have one.");
+                }
+
+                if (course.RequiresLabComputer && !classroom.HasLabComputer)
+                {
+                    ModelState.AddModelError("ClassroomId", "This course requires lab computers, but the selected classroom does not provide them.");
+                }
             }
 
             var instructorConflict = await _context.CourseSessions.AnyAsync(cs =>
@@ -214,6 +252,47 @@ namespace TrainingHub.Mvc.Controllers
         private bool CourseSessionExists(int id)
         {
             return _context.CourseSessions.Any(e => e.Id == id);
+        }
+
+        private static bool SessionAssignmentChanged(CourseSession existingSession, CourseSession updatedSession)
+        {
+            return existingSession.InstructorId != updatedSession.InstructorId ||
+                   existingSession.ClassroomId != updatedSession.ClassroomId ||
+                   existingSession.StartDate != updatedSession.StartDate ||
+                   existingSession.EndDate != updatedSession.EndDate ||
+                   !string.Equals(existingSession.Status, updatedSession.Status, StringComparison.Ordinal);
+        }
+
+        private async Task NotifyInstructorAboutSessionAsync(
+            CourseSession courseSession,
+            string changeType,
+            CancellationToken cancellationToken)
+        {
+            var sessionSnapshot = await _context.CourseSessions
+                .AsNoTracking()
+                .Include(cs => cs.Course)
+                .Include(cs => cs.Classroom)
+                .Include(cs => cs.Instructor)
+                .FirstOrDefaultAsync(cs => cs.Id == courseSession.Id, cancellationToken);
+
+            if (sessionSnapshot?.Instructor == null)
+            {
+                return;
+            }
+
+            var notification = new Notification
+            {
+                Title = string.Equals(changeType, "assigned", StringComparison.Ordinal) ? "Session Assigned" : "Session Updated",
+                Message = $"{sessionSnapshot.Course?.Title ?? "Course"} is scheduled in {sessionSnapshot.Classroom?.Location ?? "the assigned classroom"} from {sessionSnapshot.StartDate:g} to {sessionSnapshot.EndDate:g}.",
+                Type = "Scheduling",
+                InstructorId = sessionSnapshot.InstructorId,
+                Link = Url.Action("Details", "CourseSessions", new { id = sessionSnapshot.Id }) ?? $"/CourseSessions/Details/{sessionSnapshot.Id}",
+                CreatedAt = DateTime.Now
+            };
+
+            _context.Notifications.Add(notification);
+            await _context.SaveChangesAsync(cancellationToken);
+            await _realtimeNotifier.PublishNotificationCreatedAsync(notification, cancellationToken);
         }
     }
 }

@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TrainingHub.Data;
 using TrainingHub.Models;
+using TrainingHub.Mvc.Hubs;
+using TrainingHub.Mvc.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +24,8 @@ builder.Services.AddHttpClient("TrainingHubApi", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5079/");
 });
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
 
 builder.Services.AddDbContext<TrainingHubDbContext>(options =>
 {
@@ -89,5 +93,7 @@ app.MapControllerRoute(
     pattern: "Course/{action=Index}/{id?}",
     defaults: new { controller = "Courses" })
     .WithStaticAssets();
+
+app.MapHub<EnrollmentRealtimeHub>(EnrollmentRealtimeHub.HubRoute);
 
 app.Run();
